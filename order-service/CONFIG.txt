@@ -13,6 +13,9 @@ ORDERS_TABLE=OrdersTable
 # SNS Publishing
 ORDER_EVENTS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:order-events
 
+# Synchronous Service Endpoints (API Gateways)
+CART_SERVICE_URL=https://api.example.com
+
 2. IAM PERMISSIONS
 --------------------------------------------------------------------------------
 To run this service in AWS Lambda, the Execution Role requires:

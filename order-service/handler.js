@@ -47,18 +47,50 @@ const handleApiGatewayEvent = async (event) => {
     let body;
     try { body = parseBody(event); } catch (e) { return createResponse(400, { error: e.message }); }
     
-    if (!body.userId || !body.items || !Array.isArray(body.items) || body.items.length === 0) {
-      return createResponse(400, { error: 'Missing userId or items array' });
+    if (!body.userId) {
+      return createResponse(400, { error: 'Missing userId' });
     }
-    
-    // Strict business logic validation to prevent exploits (e.g. negative quantities giving refunds)
-    for (const item of body.items) {
-      if (!item.productId || typeof item.quantity !== 'number' || item.quantity <= 0 || typeof item.unit_price !== 'number' || item.unit_price < 0) {
-         return createResponse(400, { error: 'Invalid items array: items must have productId, quantity (>0), and unit_price (>=0)' });
+
+    const CART_SERVICE_URL = process.env.CART_SERVICE_URL;
+    let items = body.items; // Fallback to provided array if cart service is bypassed
+    let total_amount = 0;
+
+    if (CART_SERVICE_URL) {
+      try {
+        const cartRes = await fetch(`${CART_SERVICE_URL}/cart/${body.userId}`);
+        if (!cartRes.ok) throw new Error(`Cart service returned ${cartRes.status}`);
+        const cartData = await cartRes.json();
+        
+        if (!cartData.data || !cartData.data.items || cartData.data.items.length === 0) {
+           return createResponse(400, { error: 'Cannot create order: Cart is empty' });
+        }
+        
+        items = cartData.data.items.map(i => ({
+           productId: i.productId,
+           quantity: i.quantity,
+           unit_price: i.price_at_addition
+        }));
+        
+        // Fire-and-forget: clear the cart after pulling items for checkout
+        fetch(`${CART_SERVICE_URL}/cart/${body.userId}`, { method: 'DELETE' }).catch(() => logger.warn('Failed to clear cart after checkout'));
+        
+      } catch (err) {
+        logger.error('Failed to contact Cart Service', { error: err.message });
+        return createResponse(502, { error: 'Failed to retrieve cart for checkout' });
+      }
+    } else {
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return createResponse(400, { error: 'Missing items array (Cart service URL not configured)' });
+      }
+      
+      for (const item of items) {
+        if (!item.productId || typeof item.quantity !== 'number' || item.quantity <= 0 || typeof item.unit_price !== 'number' || item.unit_price < 0) {
+           return createResponse(400, { error: 'Invalid items array: items must have productId, quantity (>0), and unit_price (>=0)' });
+        }
       }
     }
 
-    const total_amount = body.items.reduce((total, item) => total + ((item.unit_price || 0) * (item.quantity || 1)), 0);
+    total_amount = items.reduce((total, item) => total + ((item.unit_price || 0) * (item.quantity || 1)), 0);
 
     const order = {
       orderId: uuidv4(),
@@ -66,7 +98,7 @@ const handleApiGatewayEvent = async (event) => {
       total_amount,
       status: 'PENDING',
       shipping_address: body.shipping_address || {},
-      items: body.items,
+      items: items,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
