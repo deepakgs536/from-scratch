@@ -1,0 +1,55 @@
+================================================================================
+NOTIFICATION SERVICE CONFIGURATION & DEPLOYMENT GUIDE (CONFIG.txt)
+================================================================================
+
+1. .ENV.EXAMPLE
+--------------------------------------------------------------------------------
+NODE_ENV=production
+AWS_REGION=us-east-1
+
+# DynamoDB
+NOTIFICATIONS_TABLE=NotificationsLogTable
+
+# AWS SES
+SES_SOURCE_EMAIL=deepakgs536@gmail.com
+
+# SQS Polling
+# This service should subscribe to ALL SNS topics (Product, Order, Payment) 
+# via a single SQS queue to handle all system-wide notifications.
+NOTIFICATION_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/notification-events-queue
+
+2. IAM PERMISSIONS
+--------------------------------------------------------------------------------
+To run this service in AWS Lambda, the Execution Role requires:
+
+[DynamoDB]
+- dynamodb:PutItem
+
+[SQS]
+- sqs:ReceiveMessage
+- sqs:DeleteMessage
+- sqs:GetQueueAttributes
+
+[SES]
+- ses:SendEmail
+- ses:SendRawEmail
+
+[CloudWatch Logs]
+- logs:CreateLogGroup
+- logs:CreateLogStream
+- logs:PutLogEvents
+
+3. SES SANDBOX MODE INSTRUCTIONS
+--------------------------------------------------------------------------------
+WARNING: If your AWS Account is in the "SES Sandbox" (which is the default state), you CANNOT send emails to arbitrary addresses. 
+You MUST verify both the sender email and the recipient email in the AWS SES Console before this service will work.
+Since this service is hardcoded to send to `deepakgs536@gmail.com`, you must navigate to AWS SES -> Verified Identities, and verify `deepakgs536@gmail.com`.
+
+4. DEPLOYMENT STEPS (AWS LAMBDA RAW ZIP)
+--------------------------------------------------------------------------------
+$ npm install
+$ zip -r function.zip . -x "*.git*"
+$ aws lambda update-function-code \
+    --function-name NotificationServiceFunction \
+    --zip-file fileb://function.zip \
+    --region us-east-1

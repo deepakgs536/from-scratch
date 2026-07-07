@@ -47,5 +47,12 @@ PROGRESS TRACKER: DONE_SO_FAR
 - [x] Engineered SQS Consumer: Listens for the `OrderCreated` SNS event and automatically provisions a new `PENDING` transaction record in DynamoDB attached to a mocked external `payment_intent_id`.
 - [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
 
+[NOTIFICATION SERVICE]
+- [x] Created `package.json` utilizing `@aws-sdk/client-ses`.
+- [x] Engineered Headless SQS Worker: Built `handler.js` exclusively as a background SQS poller with no API Gateway routes.
+- [x] Implemented AWS SES Dispatch: Developed `src/ses.js` utility and mapped `OrderCreated` events to trigger beautifully formatted HTML email receipts.
+- [x] Implemented Event Logging: Stores email dispatch states (SENT/FAILED) in `NotificationsLogTable` via DynamoDB `PutCommand`.
+- [x] Created service-specific `CONFIG.txt` providing SES Sandbox warnings and deployment steps.
+
 [VERSION CONTROL]
-- [x] Changes cleanly committed and pushed to the remote GitHub repository by the user ("updated error handling").
+- [x] Changes cleanly committed and pushed to the remote GitHub repository by the user.
