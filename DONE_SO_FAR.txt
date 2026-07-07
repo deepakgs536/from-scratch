@@ -23,5 +23,29 @@ PROGRESS TRACKER: DONE_SO_FAR
 - [x] Added strict array validation to gracefully ignore malformed SQS JSON payloads rather than crashing the Lambda batch.
 - [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
 
+[CART SERVICE]
+- [x] Created `package.json`.
+- [x] Built AWS Lambda native `handler.js`.
+- [x] Engineered API Gateway Endpoints: Implemented `GET /cart/:userId`, `POST /cart/:userId/items`, `DELETE /cart/:userId/items/:itemId`, and `DELETE /cart/:userId`.
+- [x] Synchronous Verification: Implemented `fetch()` calls to `PRODUCT_SERVICE_URL` and `INVENTORY_SERVICE_URL` inside `POST` handler to aggressively prevent users from adding deleted products or exceeding available warehouse stock. Added strict mathematical checks (`> 0`) to prevent exploits.
+- [x] Engineered SQS Background Syncing: Configured `handleSqsEvent` to parse incoming `ProductUpdated` and `ProductDeleted` events. It retroactively scans and syncs cart items inside DynamoDB.
+- [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
+
+[ORDER SERVICE]
+- [x] Created `package.json`.
+- [x] Built AWS Lambda native `handler.js`.
+- [x] Server-Authoritative Checkout: Engineered `POST /orders` endpoint to ditch client-provided item arrays. It makes a secure `fetch()` call to the Cart Service via `userId`, ensuring absolute data integrity.
+- [x] Engineered API Gateway Endpoints: Implemented `GET /orders/user/:userId` via DynamoDB Global Secondary Index queries, and `PUT /orders/:orderId/status` for admin overrides.
+- [x] Engineered Saga Pattern Orchestration: Broadcasts the `OrderCreated` SNS event (which Inventory Service and Payment Service listen for).
+- [x] Engineered SQS Saga Consumer: Configured `handleSqsEvent` to listen for the resolution of the checkout. It processes `InventoryReserved`, `InventoryReservationFailed`, `PaymentSucceeded`, and `PaymentFailed` events, programmatically advancing or cancelling the Order state machine (incorporating `attribute_exists` locks to prevent ghost row creation).
+- [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
+
+[PAYMENT SERVICE]
+- [x] Created `package.json`.
+- [x] Built AWS Lambda native `handler.js`.
+- [x] Anti-Corruption Webhook: Implemented `POST /payments/webhook` acting as a simulated Stripe/PayPal entry point. It accepts external status updates (`SUCCESS`, `FAILED`, `REFUNDED`) and internally translates these into internal domain events (`PaymentSucceeded`, `PaymentFailed`, `PaymentRefunded`) published to SNS.
+- [x] Engineered SQS Consumer: Listens for the `OrderCreated` SNS event and automatically provisions a new `PENDING` transaction record in DynamoDB attached to a mocked external `payment_intent_id`.
+- [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
+
 [VERSION CONTROL]
 - [x] Changes cleanly committed and pushed to the remote GitHub repository by the user ("updated error handling").
