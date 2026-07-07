@@ -219,8 +219,14 @@ export const handler = async (event, context) => {
       return await handleApiGatewayEvent(event);
     }
   } catch (error) {
-    logger.error('Lambda Error', { error: error.message, stack: error.stack });
-    if (event.Records) throw error; 
-    return createResponse(500, { error: 'Internal Server Error' });
+    logger.error("Lambda Error", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+  
+    return createResponse(500, {
+      error: error.message
+    });
   }
 };

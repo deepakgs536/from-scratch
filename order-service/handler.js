@@ -72,6 +72,7 @@ const handleApiGatewayEvent = async (event) => {
         }));
         
         // Fire-and-forget: clear the cart after pulling items for checkout
+        // need to change...
         fetch(`${CART_SERVICE_URL}/cart/${body.userId}`, { method: 'DELETE' }).catch(() => logger.warn('Failed to clear cart after checkout'));
         
       } catch (err) {
