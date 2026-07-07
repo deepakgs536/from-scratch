@@ -1,4 +1,4 @@
-import { GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, UpdateCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from './src/dynamodb.js';
 import { publishEvent } from './src/sns.js';
 import { logger } from './src/logger.js';
@@ -91,6 +91,11 @@ const handleSqsEvent = async (event) => {
       : sqsMessage;
     
     const { eventType, payload } = payloadWrapper;
+
+    logger.info("Parsed event", {
+      eventType,
+      payload
+    });
     
     if (eventType === 'OrderCreated') {
       const { orderId, items } = payload;
@@ -121,18 +126,35 @@ const handleSqsEvent = async (event) => {
           }));
           
           logger.info(`Reserved inventory for productId: ${item.productId}`);
-          await publishEvent(TOPIC_ARN, 'InventoryReserved', { orderId, productId: item.productId });
+          // need to update
+          // await publishEvent(TOPIC_ARN, 'InventoryReserved', { orderId, productId: item.productId });
           
         } catch (error) {
           if (error.name === 'ConditionalCheckFailedException') {
             logger.warn(`Insufficient stock for productId: ${item.productId}`);
-            await publishEvent(TOPIC_ARN, 'InventoryReservationFailed', { orderId, productId: item.productId, reason: 'Insufficient Stock' });
+            // await publishEvent(TOPIC_ARN, 'InventoryReservationFailed', { orderId, productId: item.productId, reason: 'Insufficient Stock' });
           } else {
             logger.error(`Error reserving stock for productId: ${item.productId}`, { error: error.message });
             throw error; // Let the Lambda fail so SQS retries or DLQs this batch
           }
         }
       }
+    }
+
+    if (eventType === 'ProductCreated') {
+      logger.info(`Creating inventory for ${payload.productId}`);
+    
+      await docClient.send(new PutCommand({
+        TableName: TABLE_NAME,
+        Item: {
+          productId: payload.productId,
+          available_quantity: 10,
+          reserved_quantity: 0,
+          updated_at: new Date().toISOString()
+        }
+      }));
+    
+      logger.info(`Inventory created for ${payload.productId}`);
     }
   }
 };
@@ -142,6 +164,12 @@ export const handler = async (event, context) => {
 
   try {
     if (!event) return createResponse(400, { error: 'Empty event' });
+
+    logger.info("Checking event type", {
+      hasRecords: !!event.Records,
+      recordsLength: event.Records?.length,
+      eventSource: event.Records?.[0]?.eventSource
+    });
 
     // Detect if event is from SQS
     if (event.Records && event.Records.length > 0 && event.Records[0].eventSource === 'aws:sqs') {
