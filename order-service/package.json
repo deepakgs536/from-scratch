@@ -1,0 +1,13 @@
+{
+  "name": "order-service",
+  "version": "1.0.0",
+  "description": "Order Microservice",
+  "main": "handler.js",
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.400.0",
+    "@aws-sdk/lib-dynamodb": "^3.400.0",
+    "@aws-sdk/client-sns": "^3.400.0",
+    "uuid": "^9.0.0"
+  }
+}

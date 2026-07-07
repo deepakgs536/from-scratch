@@ -1,0 +1,42 @@
+================================================================================
+PROGRESS TRACKER: DONE_SO_FAR
+================================================================================
+
+- [x] Initial Architecture Design: Finalized the architecture using AWS DynamoDB, native JS handlers (no Express), and AWS SNS/SQS for asynchronous Choreography.
+- [x] Schema & Documentation: Fully defined the NoSQL Data Dictionary, Saga Pattern Event Flows, and an ASCII system architecture in `TODO.txt` and translated it into a beautifully formatted `README.md`.
+- [x] Repository Foundation: Created a standard Node.js `.gitignore` in the monorepo root.
+- [x] Service Refactoring (Lambda-Native Pivot): Evolved the initial architecture from long-running Docker/ECS containers to ephemeral AWS Lambda Functions.
+
+[PRODUCT SERVICE]
+- [x] Created `package.json` with `@aws-sdk/lib-dynamodb` and `@aws-sdk/client-sns`.
+- [x] Built AWS Lambda native `handler.js` for handling API Gateway Proxy requests (`GET /products`, `POST /products`, `DELETE /products/:id`).
+- [x] Implemented modular utilities (`src/dynamodb.js`, `src/sns.js`, `src/logger.js`).
+- [x] Configured SNS to broadcast `ProductCreated` and `ProductDeleted` domain events.
+- [x] Applied bulletproof error handling: Strict `JSON.parse` wrapper, CORS Preflight support, payload verification, and native `event.pathParameters` regex fallback.
+- [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
+
+[INVENTORY SERVICE]
+- [x] Created `package.json`.
+- [x] Built a hybrid AWS Lambda `handler.js` that distinguishes and natively processes both API Gateway Proxy Events (manual stock adjustments) and SQS Trigger Events (Saga background processing).
+- [x] Engineered Lock-Free Deductions: Implemented a robust DynamoDB `UpdateCommand` with `ConditionExpression: available_quantity >= :qty` to reserve stock asynchronously.
+- [x] Engineered Saga Fail-Safes: If the lock fails, it safely catches the `ConditionalCheckFailedException` and broadcasts `InventoryReservationFailed` back to SNS.
+- [x] Added strict array validation to gracefully ignore malformed SQS JSON payloads rather than crashing the Lambda batch.
+- [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
+
+[CART SERVICE]
+- [x] Created `package.json`.
+- [x] Built AWS Lambda native `handler.js`.
+- [x] Engineered API Gateway Endpoints: Implemented `GET /cart/:userId`, `POST /cart/:userId/items` (upserts items and calculates running totals), `DELETE /cart/:userId/items/:itemId`, and `DELETE /cart/:userId`.
+- [x] Engineered SQS Background Syncing: Configured `handleSqsEvent` to parse incoming `ProductUpdated` and `ProductDeleted` events. It actively scans the `CartsTable` to retroactively strip deleted items out of active user carts, and automatically syncs pricing updates for products already in users' carts.
+- [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
+
+[ORDER SERVICE]
+- [x] Created `package.json`.
+- [x] Built AWS Lambda native `handler.js`.
+- [x] Engineered API Gateway Endpoints: Implemented `POST /orders` to generate checkout sessions (calculating absolute total value), `GET /orders/user/:userId` via DynamoDB Global Secondary Index queries, and `PUT /orders/:orderId/status` for admin overrides.
+- [x] Engineered Saga Pattern Orchestration: The `POST /orders` handler saves the order in a `PENDING` state and successfully broadcasts the `OrderCreated` SNS event (which the Inventory Service listens for).
+- [x] Engineered SQS Saga Consumer: Configured `handleSqsEvent` to listen for the resolution of the checkout. It processes `InventoryReserved`, `InventoryReservationFailed`, `PaymentSucceeded`, and `PaymentFailed` events, programmatically advancing or cancelling the Order state machine.
+- [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
+
+[VERSION CONTROL]
+- [x] Changes cleanly committed and pushed to the remote GitHub repository by the user ("updated error handling").
