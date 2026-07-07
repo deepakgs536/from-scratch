@@ -16,15 +16,34 @@ const createResponse = (statusCode, body) => ({
   body: JSON.stringify(body)
 });
 
+const parseBody = (event) => {
+  if (!event.body) return {};
+  if (typeof event.body === 'object') return event.body;
+  try {
+    return JSON.parse(event.body);
+  } catch (err) {
+    throw new Error('Invalid JSON body');
+  }
+};
+
+const getProductId = (event, path) => {
+  if (event.pathParameters && event.pathParameters.productId) return event.pathParameters.productId;
+  if (event.pathParameters && event.pathParameters.id) return event.pathParameters.id;
+  const match = path.match(/\/inventory\/([^\/]+)/);
+  return match ? match[1] : null;
+};
+
 const handleApiGatewayEvent = async (event) => {
-  const path = event.path || event.rawPath || '';
+  const path = event.path || (event.requestContext && event.requestContext.http && event.requestContext.http.path) || event.rawPath || '';
   const method = event.httpMethod || (event.requestContext && event.requestContext.http && event.requestContext.http.method) || '';
 
   if (method === 'OPTIONS') return createResponse(200, { success: true });
 
   // GET /inventory/:productId
   if (path.includes('/inventory/') && !path.endsWith('/adjust') && method === 'GET') {
-    const productId = event.pathParameters ? event.pathParameters.productId : path.split('/').pop();
+    const productId = getProductId(event, path);
+    if (!productId) return createResponse(400, { error: 'Product ID missing from path' });
+
     const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { productId } }));
     if (!Item) return createResponse(404, { error: 'Inventory record not found' });
     return createResponse(200, { success: true, data: Item });
@@ -32,8 +51,18 @@ const handleApiGatewayEvent = async (event) => {
 
   // POST /inventory/adjust
   if (path.endsWith('/inventory/adjust') && method === 'POST') {
-    const body = typeof event.body === 'string' ? JSON.parse(event.body) : (event.body || {});
+    let body;
+    try {
+      body = parseBody(event);
+    } catch (e) {
+      return createResponse(400, { error: e.message });
+    }
+
     const { productId, quantityChange } = body;
+    
+    if (!productId || typeof quantityChange !== 'number') {
+      return createResponse(400, { error: 'Missing or invalid productId or quantityChange (must be a number)' });
+    }
     
     const response = await docClient.send(new UpdateCommand({
       TableName: TABLE_NAME,
@@ -67,7 +96,17 @@ const handleSqsEvent = async (event) => {
       const { orderId, items } = payload;
       logger.info(`Processing OrderCreated for orderId: ${orderId}`);
       
+      if (!items || !Array.isArray(items)) {
+        logger.warn(`OrderCreated event missing valid items array for orderId: ${orderId}`);
+        continue; // Skip invalid events rather than crashing the batch
+      }
+
       for (const item of items) {
+        if (!item.productId || typeof item.quantity !== 'number') {
+          logger.warn(`Invalid item in OrderCreated payload`, { item });
+          continue;
+        }
+
         try {
           await docClient.send(new UpdateCommand({
             TableName: TABLE_NAME,
@@ -90,7 +129,7 @@ const handleSqsEvent = async (event) => {
             await publishEvent(TOPIC_ARN, 'InventoryReservationFailed', { orderId, productId: item.productId, reason: 'Insufficient Stock' });
           } else {
             logger.error(`Error reserving stock for productId: ${item.productId}`, { error: error.message });
-            throw error;
+            throw error; // Let the Lambda fail so SQS retries or DLQs this batch
           }
         }
       }
@@ -102,14 +141,20 @@ export const handler = async (event, context) => {
   logger.info("Received event", { event });
 
   try {
+    if (!event) return createResponse(400, { error: 'Empty event' });
+
+    // Detect if event is from SQS
     if (event.Records && event.Records.length > 0 && event.Records[0].eventSource === 'aws:sqs') {
       await handleSqsEvent(event);
       return { success: true };
-    } else {
+    } 
+    // Otherwise treat as API Gateway HTTP event
+    else {
       return await handleApiGatewayEvent(event);
     }
   } catch (error) {
-    logger.error('Lambda Error', { error: error.message });
+    logger.error('Lambda Error', { error: error.message, stack: error.stack });
+    // Throw error so SQS knows the batch failed
     if (event.Records) throw error; 
     return createResponse(500, { error: 'Internal Server Error' });
   }

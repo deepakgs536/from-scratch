@@ -17,11 +17,30 @@ const createResponse = (statusCode, body) => ({
   body: JSON.stringify(body)
 });
 
+const parseBody = (event) => {
+  if (!event.body) return {};
+  if (typeof event.body === 'object') return event.body;
+  try {
+    return JSON.parse(event.body);
+  } catch (err) {
+    throw new Error('Invalid JSON body');
+  }
+};
+
+const getProductId = (event, path) => {
+  if (event.pathParameters && event.pathParameters.id) return event.pathParameters.id;
+  if (event.pathParameters && event.pathParameters.productId) return event.pathParameters.productId;
+  const match = path.match(/\/products\/([^\/]+)/);
+  return match ? match[1] : null;
+};
+
 export const handler = async (event, context) => {
   logger.info("Received event", { event });
 
   try {
-    const path = event.path || event.rawPath || '';
+    if (!event) return createResponse(400, { error: 'Empty event' });
+
+    const path = event.path || (event.requestContext && event.requestContext.http && event.requestContext.http.path) || event.rawPath || '';
     const method = event.httpMethod || (event.requestContext && event.requestContext.http && event.requestContext.http.method) || '';
 
     // Handle Preflight CORS
@@ -37,7 +56,9 @@ export const handler = async (event, context) => {
 
     // GET /products/:id
     if (path.includes('/products/') && method === 'GET') {
-      const id = event.pathParameters ? event.pathParameters.id : path.split('/').pop();
+      const id = getProductId(event, path);
+      if (!id) return createResponse(400, { error: 'Product ID missing from path' });
+
       const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { productId: id } }));
       if (!Item) return createResponse(404, { error: 'Product not found' });
       return createResponse(200, { success: true, data: Item });
@@ -45,15 +66,25 @@ export const handler = async (event, context) => {
 
     // POST /products
     if (path.endsWith('/products') && method === 'POST') {
-      const body = typeof event.body === 'string' ? JSON.parse(event.body) : (event.body || {});
+      let body;
+      try {
+        body = parseBody(event);
+      } catch (e) {
+        return createResponse(400, { error: e.message });
+      }
+
+      if (!body.name || !body.price) {
+        return createResponse(400, { error: 'Missing required fields: name, price' });
+      }
+
       const product = {
         productId: uuidv4(),
         name: body.name,
-        description: body.description,
-        price: body.price,
-        sku: body.sku,
-        category: body.category,
-        image_url: body.image_url,
+        description: body.description || '',
+        price: Number(body.price),
+        sku: body.sku || '',
+        category: body.category || '',
+        image_url: body.image_url || '',
         stock_status: 'IN_STOCK',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -67,7 +98,9 @@ export const handler = async (event, context) => {
     
     // DELETE /products/:id
     if (path.includes('/products/') && method === 'DELETE') {
-      const id = event.pathParameters ? event.pathParameters.id : path.split('/').pop();
+      const id = getProductId(event, path);
+      if (!id) return createResponse(400, { error: 'Product ID missing from path' });
+
       await docClient.send(new DeleteCommand({ TableName: TABLE_NAME, Key: { productId: id } }));
       await publishEvent(TOPIC_ARN, 'ProductDeleted', { productId: id });
       return createResponse(200, { success: true, message: 'Product deleted' });
@@ -76,7 +109,7 @@ export const handler = async (event, context) => {
     return createResponse(404, { error: 'Not Found' });
 
   } catch (error) {
-    logger.error('Lambda Error', { error: error.message });
+    logger.error('Lambda Error', { error: error.message, stack: error.stack });
     return createResponse(500, { error: 'Internal Server Error' });
   }
 };
