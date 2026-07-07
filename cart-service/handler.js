@@ -64,12 +64,63 @@ const handleApiGatewayEvent = async (event) => {
       return createResponse(400, { error: 'Missing or invalid fields: productId, quantity (must be >0), price (must be >=0)' });
     }
 
+    // Synchronous Verification Logic
+    const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL;
+    const INVENTORY_SERVICE_URL = process.env.INVENTORY_SERVICE_URL;
+    
+    if (PRODUCT_SERVICE_URL) {
+      try {
+        const prodRes = await fetch(`${PRODUCT_SERVICE_URL}/products/${body.productId}`);
+        if (prodRes.status === 404) return createResponse(404, { error: 'Product not found' });
+        if (!prodRes.ok) throw new Error(`Product service returned ${prodRes.status}`);
+      } catch (err) {
+        logger.error('Failed to contact Product Service', { error: err.message });
+        return createResponse(502, { error: 'Product verification failed' });
+      }
+    }
+
+    if (INVENTORY_SERVICE_URL) {
+      try {
+        const invRes = await fetch(`${INVENTORY_SERVICE_URL}/inventory/${body.productId}`);
+        if (invRes.status === 404) return createResponse(404, { error: 'Inventory record not found' });
+        if (!invRes.ok) throw new Error(`Inventory service returned ${invRes.status}`);
+        
+        const invData = await invRes.json();
+        const available = invData.data ? invData.data.available_quantity : 0;
+        
+        // Ensure requested quantity doesn't exceed currently available stock
+        if (available < body.quantity) {
+          return createResponse(400, { error: `Insufficient stock. Only ${available} available.` });
+        }
+      } catch (err) {
+        logger.error('Failed to contact Inventory Service', { error: err.message });
+        return createResponse(502, { error: 'Inventory verification failed' });
+      }
+    }
+
     const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { userId } }));
     let cart = Item || { userId, items: [], total_price: 0 };
     cart.items = Array.isArray(cart.items) ? cart.items : [];
     
     const existingItemIndex = cart.items.findIndex(i => i.productId === body.productId);
     if (existingItemIndex > -1) {
+      // If we are adding more quantity to an existing item, verify the NEW total doesn't exceed stock
+      if (INVENTORY_SERVICE_URL) {
+         try {
+           const invRes = await fetch(`${INVENTORY_SERVICE_URL}/inventory/${body.productId}`);
+           if (invRes.ok) {
+             const invData = await invRes.json();
+             const available = invData.data ? invData.data.available_quantity : 0;
+             const proposedTotal = cart.items[existingItemIndex].quantity + body.quantity;
+             if (available < proposedTotal) {
+               return createResponse(400, { error: `Insufficient stock for accumulated cart total. Only ${available} available.` });
+             }
+           }
+         } catch (err) {
+           // Ignore silent failures on the second redundant check
+         }
+      }
+
       cart.items[existingItemIndex].quantity += body.quantity;
       cart.items[existingItemIndex].price_at_addition = body.price; 
     } else {
@@ -128,7 +179,7 @@ const handleSqsEvent = async (event) => {
         const carts = scanRes.Items || [];
         
         for (const cart of carts) {
-          if (!cart.items || !Array.isArray(cart.items)) continue; // Defensive guard
+          if (!cart.items || !Array.isArray(cart.items)) continue; 
 
           const itemIndex = cart.items.findIndex(i => i.productId === targetProductId);
           if (itemIndex > -1) {

@@ -13,6 +13,10 @@ CARTS_TABLE=CartsTable
 # SQS Polling
 PRODUCT_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/product-events-queue
 
+# Synchronous Service Endpoints (API Gateways)
+PRODUCT_SERVICE_URL=https://api.example.com
+INVENTORY_SERVICE_URL=https://api.example.com
+
 2. IAM PERMISSIONS
 --------------------------------------------------------------------------------
 To run this service in AWS Lambda, the Execution Role requires:
