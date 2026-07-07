@@ -1,0 +1,41 @@
+================================================================================
+PRODUCT SERVICE CONFIGURATION & DEPLOYMENT GUIDE (CONFIG.txt)
+================================================================================
+
+1. .ENV.EXAMPLE
+--------------------------------------------------------------------------------
+NODE_ENV=production
+AWS_REGION=us-east-1
+
+# DynamoDB
+PRODUCTS_TABLE=ProductsTable
+
+# SNS Publishing
+PRODUCT_EVENTS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:product-events
+
+2. IAM PERMISSIONS
+--------------------------------------------------------------------------------
+To run this service in AWS Lambda, the Execution Role requires:
+
+[DynamoDB]
+- dynamodb:PutItem
+- dynamodb:GetItem
+- dynamodb:DeleteItem
+- dynamodb:Scan
+
+[SNS]
+- sns:Publish
+
+[CloudWatch Logs]
+- logs:CreateLogGroup
+- logs:CreateLogStream
+- logs:PutLogEvents
+
+3. DEPLOYMENT STEPS (AWS LAMBDA RAW ZIP)
+--------------------------------------------------------------------------------
+$ npm install
+$ zip -r function.zip . -x "*.git*"
+$ aws lambda update-function-code \
+    --function-name ProductServiceFunction \
+    --zip-file fileb://function.zip \
+    --region us-east-1

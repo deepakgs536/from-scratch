@@ -1,0 +1,244 @@
+# Containerized E-Commerce Microservices Architecture
+
+Welcome to the **Containerized E-Commerce Microservices Architecture**. This repository contains the design, schema, and eventual implementation of a massively scalable, event-driven microservices ecosystem built using Native JavaScript handlers, Docker, DynamoDB, and AWS SNS/SQS.
+
+---
+
+## 🏗️ 1. Architecture Overview (Containerized + DynamoDB)
+
+- **Compute Strategy**: Microservices are deployed as Dockerized containers. By strictly utilizing **Native JS Handlers** (Node.js built-in `http` module) rather than bulky frameworks like Express.js, we achieve lower memory footprint, faster cold boot times (if scaling from zero), and higher raw throughput. Containers will be orchestrated via AWS ECS (Fargate) or EKS for automated scaling and self-healing.
+- **Database Strategy**: A Polyglot Persistence model using NoSQL Databases (**Amazon DynamoDB**). Each microservice governs its own strictly isolated DynamoDB table to enforce the bounded context pattern. DynamoDB provides single-digit millisecond performance and supports Transactions and Conditional Updates where strict data consistency is critical (e.g., inventory deduction).
+- **API Routing & Ingress**: An API Gateway or Application Load Balancer (AWS ALB / Kong) acts as the single entry point. It handles SSL termination, rate limiting, and routes HTTP requests to the respective private container clusters based on URL paths (e.g., `/api/orders`).
+- **Asynchronous Event-Driven Communication**: To prevent tight coupling and cascading failures, inter-service communication utilizes a **Choreography pattern**. 
+  - **AWS SNS** acts as the central event bus for publishing domain events (e.g., `OrderCreated`).
+  - **AWS SQS** queues subscribe to these topics. Each service has dedicated worker processes polling these queues to guarantee reliable, at-least-once message delivery.
+- **Infrastructure as Code (IaC)**: Terraform or AWS CDK will be used to declaratively provision the entire AWS stack (VPC, ECS, DynamoDB, SNS/SQS, IAM Roles).
+
+---
+
+## 📦 2. Service Details & System Boundaries
+
+> **Technical Implementation Note**: Every service consists of two primary layers: a Native JS HTTP API Server for synchronous client requests, and a background SQS Worker Process for asynchronous event consumption. Idempotency is required across all SQS workers.
+
+### [1] Product Service
+- **Domain Responsibility**: Serves as the master source of truth for the product catalog.
+- **Compute**: Native JS API Server
+- **Endpoints**: `GET /products`, `GET /products/:id`, `POST /products`, `PUT /products/:id`, `DELETE /products/:id`
+- **Events Published (SNS)**: `ProductCreated`, `ProductUpdated`, `ProductDeleted`
+- **Database**: `ProductsTable` (DynamoDB)
+
+### [2] Cart Service
+- **Domain Responsibility**: Manages ephemeral shopping carts. Optimizes for high read/write throughput.
+- **Compute**: Native JS API Server + SQS Worker Process
+- **Endpoints**: `GET /cart/:userId`, `POST /cart/:userId/items`, `PUT /cart/:userId/items/:itemId`, `DELETE /cart/:userId/items/:itemId`, `DELETE /cart/:userId`
+- **Events Consumed (SQS)**: `ProductDeleted` (triggering item removal), `ProductUpdated` (triggering price sync)
+- **Database**: `CartsTable` (DynamoDB)
+
+### [3] Order Service
+- **Domain Responsibility**: Manages the checkout lifecycle and acts as the orchestrator of the order state machine.
+- **Compute**: Native JS API Server + SQS Worker Process
+- **Endpoints**: `POST /orders`, `GET /orders/user/:userId`, `GET /orders/:orderId`, `PUT /orders/:orderId/status`
+- **Events Published (SNS)**: `OrderCreated`, `OrderCancelled`, `OrderCompleted`
+- **Events Consumed (SQS)**: `PaymentSucceeded`, `PaymentFailed`, `InventoryReserved`, `InventoryReservationFailed`
+- **Database**: `OrdersTable` (DynamoDB)
+
+### [4] Inventory Service
+- **Domain Responsibility**: Tracks warehouse stock and handles critical concurrency issues (preventing overselling).
+- **Compute**: Native JS API Server + SQS Worker Process
+- **Endpoints**: `GET /inventory/:productId`, `POST /inventory/adjust`
+- **Events Published (SNS)**: `InventoryReserved`, `InventoryReservationFailed`, `StockLow`
+- **Events Consumed (SQS)**: `OrderCreated` (triggers stock reservation), `OrderCancelled` (triggers stock release)
+- **Database**: `InventoryTable` (DynamoDB)
+
+### [5] Payment Service
+- **Domain Responsibility**: Acts as an anti-corruption layer interacting with external gateways (Stripe/PayPal).
+- **Compute**: Native JS API Server + SQS Worker Process
+- **Endpoints**: `POST /payments/initiate`, `POST /payments/webhook`, `GET /payments/:paymentId`
+- **Events Published (SNS)**: `PaymentSucceeded`, `PaymentFailed`, `PaymentRefunded`
+- **Events Consumed (SQS)**: `OrderCreated`
+- **Database**: `PaymentsTable` (DynamoDB)
+
+### [6] Notification Service (Later Stage)
+- **Domain Responsibility**: Dispatches transactional emails/SMS to users.
+- **Compute**: JS Worker Process (Headless/No REST API)
+- **Events Consumed (SQS)**: `OrderCreated`, `PaymentSucceeded`, `PaymentFailed`, `OrderShipped`
+- **Database**: `NotificationsLogTable` (DynamoDB)
+
+---
+
+## ☁️ 3. AWS Infrastructure & IaC Requirements
+
+- [ ] **IaC Initialization**: Define the workspace using Terraform or AWS CDK.
+- [ ] **Networking**: Provision a VPC with 2 Public Subnets (for ALB/NAT) and 2 Private Subnets (for ECS compute).
+- [ ] **Routing**: Configure AWS ALB with listener rules forwarding to target groups for each microservice.
+- [ ] **Databases**: Provision Amazon DynamoDB Tables with On-Demand billing (Pay-Per-Request). Set up Global Secondary Indexes (GSIs) where required.
+- [ ] **Messaging**: 
+    - Create SNS Topics: `product-events`, `order-events`, `inventory-events`, `payment-events`.
+    - Create SQS Queues with Dead Letter Queues (DLQ) enabled for failure retention. 
+    - Configure SNS-to-SQS subscriptions with appropriate IAM resource policies.
+- [ ] **Compute**: Provision ECS Fargate Clusters, define Task Definitions, and configure CloudWatch Logging.
+- [ ] **CI/CD**: Implement GitHub Actions to run tests, build Docker images, push to Amazon ECR, and force ECS rolling updates.
+
+---
+
+## 🚀 4. Development Tasks & Milestones
+
+- [ ] **Phase 1**: Initialize Monorepo (e.g., Turborepo) with isolated `apps/` for services and `packages/` for shared code.
+- [ ] **Phase 2**: Develop the Shared Library package containing native JS request routers, global error handlers, DynamoDB DocumentClient wrappers, and SNS/SQS abstraction classes.
+- [ ] **Phase 3**: Scaffold the Product Service (Native JS HTTP server, DynamoDB integration, SNS publishing logic).
+- [ ] **Phase 4**: Scaffold the Inventory Service (API + SQS worker polling `order-events` queue). Implement DynamoDB Conditional Expressions (e.g., `available >= requested`) for safe lock-free deductions.
+- [ ] **Phase 5**: Scaffold the Cart Service (API + SQS worker for `product-events`). Store items as embedded Map Lists in DynamoDB.
+- [ ] **Phase 6**: Scaffold the Order Service (API for checkout, publish `OrderCreated`, and SQS workers for Inventory/Payment responses).
+- [ ] **Phase 7**: Implement Payment Service and integrate the Stripe Webhook signature verification endpoint.
+
+---
+
+## 🔄 5. Detailed Architecture Event Flow & Saga Pattern
+
+**Scenario: The Order Checkout Lifecycle (Saga Pattern Implementation)**
+
+1. **Initiation**: Client POSTs payload to API Gateway, routed to Order Service (`/orders`).
+2. **Order Creation**: Order Service parses request, inserts `OrdersTable` item (Status: `PENDING`), and publishes `OrderCreated` to SNS. API responds `201 Created` to client.
+3. **Inventory Reservation**: 
+   - Inventory Service SQS Worker receives `OrderCreated`.
+   - Executes a DynamoDB Conditional Update on `InventoryTable` (`UpdateExpression: SET reserved = reserved + :qty`, `ConditionExpression: available >= :qty`).
+   - If Condition succeeds: publishes `InventoryReserved` to SNS.
+   - If Condition fails (`ConditionalCheckFailedException`): publishes `InventoryReservationFailed` to SNS.
+4. **Compensation (If Inventory Fails)**:
+   - Order Service Worker consumes `InventoryReservationFailed`.
+   - Updates Order status to `CANCELLED`. Flow halts.
+5. **Progression (If Inventory Succeeds)**:
+   - Order Service Worker consumes `InventoryReserved`. Updates Order status to `RESERVED`.
+   - Payment Service Worker consumes `OrderCreated` (or `InventoryReserved`), initiates a Stripe PaymentIntent, and saves to `PaymentsTable`.
+6. **Finalization**:
+   - Client completes payment on frontend. Stripe fires Webhook to Payment Service.
+   - Payment Service validates Webhook, updates `PaymentsTable` (Status: `SUCCESS`), and publishes `PaymentSucceeded` to SNS.
+   - Order Service Worker consumes `PaymentSucceeded`, updates Order status to `PAID`.
+   - Notification Service consumes `PaymentSucceeded` and triggers SES to email the user receipt.
+
+---
+
+## 🗄️ 6. Exhaustive Data Dictionary (NoSQL / DynamoDB)
+
+### ProductsTable
+- **PK**: `productId` (String UUID)
+- **name**: String
+- **description**: String
+- **price**: Number
+- **sku**: String (GSI2-PK)
+- **category**: String (GSI1-PK)
+- **image_url**: String
+- **stock_status**: String (IN_STOCK, OUT_OF_STOCK, LOW_STOCK)
+- **created_at**: String (ISO-8601 Timestamp, GSI1-SK)
+- **updated_at**: String
+
+### CartsTable
+- **PK**: `userId` (String UUID)
+- **items**: List of Maps `[{ productId, quantity, price_at_addition }]`
+- **total_price**: Number
+- **updated_at**: String
+
+### OrdersTable
+- **PK**: `orderId` (String UUID)
+- **userId**: String (UUID, GSI1-PK)
+- **total_amount**: Number
+- **status**: String (PENDING, RESERVED, AWAITING_PAYMENT, PAID, FAILED, SHIPPED, CANCELLED)
+- **shipping_address**: Map `{ street, city, state, zip_code, country }`
+- **items**: List of Maps `[{ productId, quantity, unit_price, total_price }]`
+- **payment_intent_id**: String
+- **created_at**: String (ISO-8601 Timestamp, GSI1-SK)
+- **updated_at**: String
+
+### InventoryTable
+- **PK**: `productId` (String UUID)
+- **available_quantity**: Number
+- **reserved_quantity**: Number
+- **updated_at**: String
+
+### PaymentsTable
+- **PK**: `paymentId` (String UUID)
+- **orderId**: String (UUID, GSI1-PK)
+- **userId**: String (UUID)
+- **amount**: Number
+- **currency**: String
+- **status**: String (PENDING, SUCCESS, FAILED, REFUNDED)
+- **transaction_id**: String
+- **payment_method**: String
+- **error_message**: String
+- **created_at**: String
+- **updated_at**: String
+
+### NotificationsLogTable
+- **PK**: `userId` (String UUID)
+- **SK**: `timestamp` (String ISO-8601)
+- **notification_type**: String
+- **status**: String (SENT, FAILED)
+- **payload**: Map
+- **error_details**: String
+
+---
+
+## 🔗 7. Service Dependencies
+
+While microservices should ideally be loosely coupled, they rely on each other via asynchronous events to fulfill business workflows.
+
+- **[1] Product Service**: Independent. Serves as the source of truth for the product catalog.
+- **[2] Cart Service**: Depends on Product Service (Asynchronous). Listens for `ProductUpdated` and `ProductDeleted` to adjust cart item prices or remove items.
+- **[3] Order Service**: Depends on Inventory Service (Asynchronous) to confirm reservations. Depends on Payment Service (Asynchronous) to finalize the order status.
+- **[4] Inventory Service**: Depends on Order Service (Asynchronous) to reserve or release stock. Depends on Product Service (Asynchronous) to initialize stock records.
+- **[5] Payment Service**: Depends on Order Service (Asynchronous) to know when to generate a payment intent.
+- **[6] Notification Service**: Depends on Order Service & Payment Service (Asynchronous) to trigger emails.
+
+---
+
+## 🗺️ 8. System Architecture Diagram
+
+```text
+                           +-------------------+
+                           |   Client / Web    |
+                           +--------+----------+
+                                    | HTTP / REST
+                                    v
+                           +-------------------+
+                           |   API GATEWAY     |  (e.g., AWS ALB, NGINX, Kong)
+                           |   (Entry Point)   |
+                           +----+----+----+----+
+                                |    |    |
+        +-----------------------+    |    +-----------------------+
+        |                            |                            |
++-------v-------+            +-------v-------+            +-------v-------+
+|PRODUCT SERVICE|            |  CART SERVICE |            | ORDER SERVICE |
+| (Native JS)   |            |  (Native JS)  |            |  (Native JS)  |
++-------+-------+            +-------+-------+            +-------+-------+
+        |                            |                            |
+[ ProductsTable ]            [  CartsTable   ]            [  OrdersTable  ]
+[  (DynamoDB)   ]            [  (DynamoDB)   ]            [  (DynamoDB)   ]
+        |                            |                            |
+        +---------------------------------------------------------+
+                                     |
+    ========================================================================
+    |                    AWS SNS (Event Bus / Topics)                      |
+    ========================================================================
+         |              |              |              |               |
+    +----v----+    +----v----+    +----v----+    +----v----+     +----v----+
+    | SQS Q's |    | SQS Q's |    | SQS Q's |    | SQS Q's |     | SQS Q's |
+    +----+----+    +----+----+    +----+----+    +----+----+     +----+----+
+         |              |              |              |               |
++--------v------+       |      +-------v-------+      |      +--------v---------+
+|PRODUCT SERVICE|       |      | INVENTORY SVC |      |      | NOTIFICATION SVC |
+| (Worker)      |       |      |  (Native JS)  |      |      | (Worker Process) |
++--------+------+       |      +-------+-------+      |      +--------+---------+
+[ ProductsTable ]       |      [ InventoryTable]      |      [ Notifications  ]
+[  (DynamoDB)   ]       |      [  (DynamoDB)   ]      |      [   (DynamoDB)   ]
+                        |                             |
+                 +------v-------+              +------v-------+
+                 | ORDER SERVICE|              | PAYMENT SVC  |
+                 |  (Worker)    |              | (Native JS)  |
+                 +------+-------+              +------+-------+
+                 [ OrdersTable  ]              [ PaymentsTable]
+                 [  (DynamoDB)  ]              [  (DynamoDB)  ]
+                                                      |
+                                               (External API)
+                                                      |
+                                                 [ STRIPE ]
+```

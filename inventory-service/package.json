@@ -1,0 +1,15 @@
+{
+  "name": "inventory-service",
+  "version": "1.0.0",
+  "description": "Inventory Microservice",
+  "main": "handler.js",
+  "type": "module",
+  "scripts": {
+    "start": "node handler.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.400.0",
+    "@aws-sdk/lib-dynamodb": "^3.400.0",
+    "@aws-sdk/client-sns": "^3.400.0"
+  }
+}

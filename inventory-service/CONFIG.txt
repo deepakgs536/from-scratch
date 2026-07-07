@@ -1,0 +1,44 @@
+================================================================================
+INVENTORY SERVICE CONFIGURATION & DEPLOYMENT GUIDE (CONFIG.txt)
+================================================================================
+
+1. .ENV.EXAMPLE
+--------------------------------------------------------------------------------
+NODE_ENV=production
+AWS_REGION=us-east-1
+
+# DynamoDB
+INVENTORY_TABLE=InventoryTable
+
+# SNS Publishing
+INVENTORY_EVENTS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:inventory-events
+
+2. IAM PERMISSIONS
+--------------------------------------------------------------------------------
+To run this service in AWS Lambda, the Execution Role requires:
+
+[DynamoDB]
+- dynamodb:GetItem
+- dynamodb:UpdateItem
+
+[SNS]
+- sns:Publish
+
+[SQS]
+- sqs:ReceiveMessage
+- sqs:DeleteMessage
+- sqs:GetQueueAttributes
+
+[CloudWatch Logs]
+- logs:CreateLogGroup
+- logs:CreateLogStream
+- logs:PutLogEvents
+
+3. DEPLOYMENT STEPS (AWS LAMBDA RAW ZIP)
+--------------------------------------------------------------------------------
+$ npm install
+$ zip -r function.zip . -x "*.git*"
+$ aws lambda update-function-code \
+    --function-name InventoryServiceFunction \
+    --zip-file fileb://function.zip \
+    --region us-east-1
