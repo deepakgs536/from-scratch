@@ -238,3 +238,15 @@ jobs:
         run: npm ci || npm install
       - name: Run tests
         run: npm test
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Snyk Security Scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
+        with:
+          args: --all-projects
+        continue-on-error: true
