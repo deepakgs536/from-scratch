@@ -8,7 +8,7 @@ beforeEach(() => {
   mock.method(docClient, 'send', async () => ({ Items: [] }));
   mock.method(SESClient.prototype, 'send', async () => ({ MessageId: 'mocked' }));
 });
-
+ 
 afterEach(() => {
   mock.reset();
 });

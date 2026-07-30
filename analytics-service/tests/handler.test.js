@@ -6,7 +6,7 @@ import { docClient } from '../src/config/aws.js';
 beforeEach(() => {
   mock.method(docClient, 'send', async () => ({}));
 });
-
+ 
 afterEach(() => {
   mock.reset();
 });

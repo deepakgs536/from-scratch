@@ -9,7 +9,7 @@ beforeEach(() => {
 
 afterEach(() => {
   mock.reset();
-});
+}); 
 
 const userEvent = (method, path, body = null, pathParameters = null, groups = null) => {
   const event = {

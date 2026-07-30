@@ -6,7 +6,7 @@ process.env.AWS_SECRET_ACCESS_KEY = 'test';
 process.env.MEDIA_BUCKET = 'test-bucket';
 
 import { S3Client } from '@aws-sdk/client-s3';
-
+ 
 let handler;
 beforeEach(async () => {
   if (!handler) {

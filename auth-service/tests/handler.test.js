@@ -8,7 +8,7 @@ beforeEach(() => {
   mock.method(CognitoIdentityProviderClient.prototype, 'send', async () => ({}));
   mock.method(SNSClient.prototype, 'send', async () => ({ MessageId: 'mocked' }));
 });
-
+ 
 afterEach(() => {
   mock.reset();
 });
