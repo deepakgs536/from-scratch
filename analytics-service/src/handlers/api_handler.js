@@ -13,7 +13,7 @@ export const handler = async (event) => {
       return createResponse(200, { success: true });
     }
 
-    if (path.endsWith("/health") && method === "GET") {
+    if (path.endsWith("/analytics/health") && method === "GET") {
       return createResponse(200, { status: "ok" });
     }
 

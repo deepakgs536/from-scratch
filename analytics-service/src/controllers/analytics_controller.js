@@ -7,7 +7,7 @@ import { logger } from "../utils/logger.js";
 export const handleApiRequest = async (path, method) => {
   if (method !== "GET") return null;
 
-  if (path.endsWith("/dashboard")) return await getDashboard();
+  if (path.endsWith("/analytics/dashboard")) return await getDashboard();
   if (path.endsWith("/analytics/revenue")) return await getRevenue();
   if (path.endsWith("/analytics/orders")) return await getOrders();
   if (path.endsWith("/analytics/products")) return await getProducts();
