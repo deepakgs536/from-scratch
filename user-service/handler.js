@@ -1,0 +1,191 @@
+import { PutCommand, GetCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { docClient } from './src/dynamodb.js';
+import { logger } from './src/logger.js';
+
+const TABLE_NAME = process.env.USERS_TABLE || 'UsersTable';
+
+const createResponse = (statusCode, body) => ({
+  statusCode,
+  headers: { 
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization"
+  },
+  body: JSON.stringify(body)
+});
+
+const parseBody = (event) => {
+  if (!event.body) return {};
+  if (typeof event.body === 'object') return event.body;
+  try {
+    return JSON.parse(event.body);
+  } catch (err) {
+    throw new Error('Invalid JSON body');
+  }
+};
+
+const getUserId = (event, path) => {
+  if (event.pathParameters && event.pathParameters.id) return event.pathParameters.id;
+  if (event.pathParameters && event.pathParameters.userId) return event.pathParameters.userId;
+  const match = path.match(/\/users\/([^\/]+)/);
+  return match ? match[1] : null;
+};
+
+const isAdmin = (event) => {
+  const groupsData = 
+    event.requestContext?.authorizer?.jwt?.claims?.['cognito:groups'] || 
+    event.requestContext?.authorizer?.claims?.['cognito:groups'];
+    
+  if (!groupsData) return false;
+
+  if (Array.isArray(groupsData)) {
+    return groupsData.includes('admin');
+  }
+    
+  if (typeof groupsData === 'string') {
+    return groupsData.includes('admin');
+  }
+
+  return false;
+};
+
+const handleApiGatewayEvent = async (event) => {
+  const path = event.path || (event.requestContext && event.requestContext.http && event.requestContext.http.path) || event.rawPath || '';
+  const method = event.httpMethod || (event.requestContext && event.requestContext.http && event.requestContext.http.method) || '';
+
+  // Handle Preflight CORS
+  if (method === 'OPTIONS') {
+    return createResponse(200, { success: true });
+  }
+
+  // GET /users
+  if (path.endsWith('/users') && method === 'GET') {
+    if (!isAdmin(event)) {
+      return createResponse(403, { error: 'Forbidden: Admin access required to list all users' });
+    }
+
+    const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE_NAME }));
+    return createResponse(200, { success: true, data: Items });
+  }
+
+  // GET /users/:id
+  if (path.includes('/users/') && method === 'GET') {
+    const id = getUserId(event, path);
+    if (!id) return createResponse(400, { error: 'User ID missing from path' });
+
+    const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { userId: id } }));
+    
+    if (!Item) return createResponse(404, { error: 'User not found' });
+    return createResponse(200, { success: true, data: Item });
+  }
+
+  // PUT /users/:id
+  if (path.includes("/users/") && method === "PUT") {
+    let body;
+    try {
+      body = parseBody(event);
+    } catch (err) {
+      return createResponse(400, { success: false, error: err.message });
+    }
+
+    const userId = getUserId(event, path);
+
+    if (!userId) {
+      return createResponse(400, { success: false, error: "User ID missing from path" });
+    }
+
+    const updatableFields = ["name", "profile_image_url", "profile_background_url"];
+    const hasUpdates = updatableFields.some((field) => body[field] !== undefined);
+
+    if (!hasUpdates) {
+      return createResponse(400, { success: false, error: "No fields provided to update" });
+    }
+
+    const { Item: existingUser } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { userId } }));
+
+    if (!existingUser) {
+      return createResponse(404, { success: false, error: "User not found" });
+    }
+
+    const updatedUser = {
+      ...existingUser,
+      name: body.name ?? existingUser.name,
+      profile_image_url: body.profile_image_url ?? existingUser.profile_image_url,
+      profile_background_url: body.profile_background_url ?? existingUser.profile_background_url,
+      updated_at: new Date().toISOString(),
+    };
+
+    await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: updatedUser }));
+
+    return createResponse(200, { success: true, message: "Profile updated successfully", data: updatedUser });
+  }
+
+  return createResponse(404, { error: 'Not Found' });
+};
+
+const handleSqsEvent = async (event) => {
+  for (const record of event.Records) {
+    let sqsMessage;
+    try {
+      sqsMessage = typeof record.body === 'string' ? JSON.parse(record.body) : record.body;
+    } catch (e) {
+      logger.error('Failed to parse SQS record body', { error: e.message, body: record.body });
+      continue;
+    }
+    
+    const payloadWrapper = (sqsMessage.Message && typeof sqsMessage.Message === 'string') 
+      ? JSON.parse(sqsMessage.Message) : sqsMessage;
+    
+    const { eventType, payload } = payloadWrapper;
+    
+    if (eventType === 'UserRegistered') {
+      const { userId, name, email } = payload;
+      
+      if (!userId || !email) {
+        logger.error('Invalid UserRegistered payload missing required fields', { payload });
+        continue;
+      }
+      
+      logger.info(`Processing UserRegistered for userId: ${userId}`);
+      
+      const user = {
+        userId,
+        name: name || 'Unknown',
+        email,
+        role: 'customer',
+        profile_image_url: '',
+        profile_background_url: '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      try {
+        await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: user }));
+        logger.info(`Successfully created user profile in DynamoDB for userId: ${userId}`);
+      } catch (err) {
+        logger.error(`Failed to save user ${userId} to DynamoDB`, { error: err.message });
+        throw err; // Allow SQS to retry
+      }
+    }
+  }
+};
+
+export const handler = async (event, context) => {
+  logger.info("Received event", { event });
+
+  try {
+    if (!event) return createResponse(400, { error: 'Empty event' });
+
+    // Route based on Event Source
+    if (event.Records && event.Records.length > 0 && event.Records[0].eventSource === 'aws:sqs') {
+      await handleSqsEvent(event);
+      return { success: true };
+    } else {
+      return await handleApiGatewayEvent(event);
+    }
+  } catch (error) {
+    logger.error('Lambda Error', { error: error.message, stack: error.stack });
+    return createResponse(500, { error: 'Internal Server Error' });
+  }
+};

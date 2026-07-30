@@ -1,0 +1,14 @@
+{
+  "name": "analytics-service",
+  "version": "1.0.0",
+  "description": "Analytics Microservice",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.400.0",
+    "@aws-sdk/lib-dynamodb": "^3.400.0"
+  }
+}

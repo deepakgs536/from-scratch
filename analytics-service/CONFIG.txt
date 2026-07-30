@@ -1,0 +1,186 @@
+==========================
+ANALYTICS SERVICE CONFIGURATION
+==========================
+
+ENVIRONMENT VARIABLES
+---------------------
+To run this service, the following environment variables can be configured:
+
+- AWS_REGION
+  Description: The AWS region to use for DynamoDB and other services.
+  Default: us-east-1
+
+- ANALYTICS_TABLE
+  Description: The DynamoDB table name for storing analytics data.
+  Default: AnalyticsTable
+
+- DYNAMODB_ENDPOINT
+  Description: Optional endpoint for local testing (e.g., LocalStack or dynamodb-local).
+  Default: undefined
+
+- LOG_LEVEL
+  Description: Sets the logging level. Options: INFO, DEBUG, WARN, ERROR.
+  Default: INFO
+
+==========================
+DYNAMODB TABLE CREATION
+==========================
+
+When creating the DynamoDB table in AWS, you MUST include the following key schema:
+
+- Table Name: AnalyticsTable (or match your ANALYTICS_TABLE environment variable)
+- Partition Key: PK (Type: String)
+- Sort Key: SK (Type: String)
+- Billing Mode: On-Demand (recommended) or Provisioned depending on your load.
+
+These keys are strictly required because the application uses a single-table design and relies on `PK` and `SK` to store different types of aggregated metrics in the same table.
+
+==========================
+API ENDPOINTS & RESPONSES
+==========================
+
+All endpoints should be prefixed with your API Gateway base URL.
+All API responses are formatted as JSON.
+
+1. GET /health
+---------------------
+Description: Health check endpoint to verify the service is running.
+Response:
+{
+  "status": "ok"
+}
+
+2. GET /dashboard
+---------------------
+Description: Retrieves the aggregated dashboard summary metrics.
+Response:
+{
+  "PK": "DASHBOARD",
+  "SK": "SUMMARY",
+  "totalRevenue": 1500.50,
+  "todayRevenue": 250.00,
+  "monthlyRevenue": 1500.50,
+  "totalOrders": 120,
+  "todayOrders": 5,
+  "pendingOrders": 2,
+  "completedOrders": 110,
+  "cancelledOrders": 8,
+  "totalProducts": 50,
+  "lowStockProducts": 3,
+  "outOfStockProducts": 1,
+  "totalCustomers": 45,
+  "averageOrderValue": 12.50,
+  "successfulPayments": 115,
+  "failedPayments": 5
+}
+
+3. GET /analytics/revenue
+---------------------
+Description: Retrieves revenue analytics data (daily/monthly).
+Response:
+[
+  {
+    "PK": "SALES",
+    "SK": "DAILY#2026-07-21",
+    "revenue": 250.00
+  },
+  {
+    "PK": "SALES",
+    "SK": "MONTHLY#2026-07",
+    "revenue": 1500.50
+  }
+]
+
+4. GET /analytics/orders
+---------------------
+Description: Retrieves order analytics data (uses dashboard metrics).
+Response:
+{
+  "PK": "DASHBOARD",
+  "SK": "SUMMARY",
+  "totalRevenue": 1500.50,
+  "todayRevenue": 250.00,
+  "monthlyRevenue": 1500.50,
+  "totalOrders": 120,
+  "todayOrders": 5,
+  "pendingOrders": 2,
+  "completedOrders": 110,
+  "cancelledOrders": 8,
+  "totalProducts": 50,
+  "lowStockProducts": 3,
+  "outOfStockProducts": 1,
+  "totalCustomers": 45,
+  "averageOrderValue": 12.50,
+  "successfulPayments": 115,
+  "failedPayments": 5
+}
+
+5. GET /analytics/products
+---------------------
+Description: Retrieves top-selling product data.
+Response:
+[
+  {
+    "PK": "PRODUCT",
+    "SK": "TOP_SELLING",
+    "productId": "12345",
+    "productName": "Wireless Headphones",
+    "unitsSold": 150,
+    "revenueGenerated": 15000.00
+  },
+  {
+    "PK": "PRODUCT",
+    "SK": "TOP_SELLING",
+    "productId": "67890",
+    "productName": "Bluetooth Speaker",
+    "unitsSold": 85,
+    "revenueGenerated": 4250.00
+  }
+]
+
+6. GET /analytics/customers
+---------------------
+Description: Retrieves customer growth analytics.
+Response:
+[
+  {
+    "PK": "CUSTOMER",
+    "SK": "DAILY#2026-07-21",
+    "count": 5
+  },
+  {
+    "PK": "CUSTOMER",
+    "SK": "DAILY#2026-07-20",
+    "count": 12
+  }
+]
+
+7. GET /analytics/inventory
+---------------------
+Description: Retrieves inventory analytics data.
+Response:
+[
+  {
+    "PK": "INVENTORY",
+    "SK": "SUMMARY",
+    "totalItemsInStock": 4500,
+    "itemsLowStock": 15,
+    "itemsOutOfStock": 2,
+    "warehouseLocations": 3
+  }
+]
+
+8. GET /analytics/payments
+---------------------
+Description: Retrieves payment analytics data.
+Response:
+[
+  {
+    "PK": "PAYMENT",
+    "SK": "SUMMARY",
+    "totalProcessedVolume": 45000.50,
+    "successRatePercentage": 98.5,
+    "averageTransactionValue": 45.00,
+    "refundsProcessed": 12
+  }
+]

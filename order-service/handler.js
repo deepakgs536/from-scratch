@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, QueryCommand, UpdateCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from './src/dynamodb.js';
 import { publishEvent } from './src/sns.js';
 import { logger } from './src/logger.js';
@@ -43,71 +43,120 @@ const handleApiGatewayEvent = async (event) => {
   if (method === 'OPTIONS') return createResponse(200, { success: true });
 
   // POST /orders
-  if (path.endsWith('/orders') && method === 'POST') {
+  if (path.endsWith("/orders") && method === "POST") {
+
     let body;
-    try { body = parseBody(event); } catch (e) { return createResponse(400, { error: e.message }); }
-    
+
+    try {
+      body = parseBody(event);
+    } catch (e) {
+      return createResponse(400, { error: e.message });
+    }
+
     if (!body.userId) {
-      return createResponse(400, { error: 'Missing userId' });
+      return createResponse(400, {
+        error: "Missing userId"
+      });
     }
 
-    const CART_SERVICE_URL = process.env.CART_SERVICE_URL;
-    let items = body.items; // Fallback to provided array if cart service is bypassed
-    let total_amount = 0;
+    if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
+      return createResponse(400, {
+        error: "Items are required"
+      });
+    }
 
-    if (CART_SERVICE_URL) {
-      try {
-        const cartRes = await fetch(`${CART_SERVICE_URL}/cart/${body.userId}`);
-        if (!cartRes.ok) throw new Error(`Cart service returned ${cartRes.status}`);
-        const cartData = await cartRes.json();
-        
-        if (!cartData.data || !cartData.data.items || cartData.data.items.length === 0) {
-           return createResponse(400, { error: 'Cannot create order: Cart is empty' });
-        }
-        
-        items = cartData.data.items.map(i => ({
-           productId: i.productId,
-           quantity: i.quantity,
-           unit_price: i.price_at_addition
-        }));
-        
-        // Fire-and-forget: clear the cart after pulling items for checkout
-        // need to change...
-        fetch(`${CART_SERVICE_URL}/cart/${body.userId}`, { method: 'DELETE' }).catch(() => logger.warn('Failed to clear cart after checkout'));
-        
-      } catch (err) {
-        logger.error('Failed to contact Cart Service', { error: err.message });
-        return createResponse(502, { error: 'Failed to retrieve cart for checkout' });
-      }
-    } else {
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        return createResponse(400, { error: 'Missing items array (Cart service URL not configured)' });
-      }
-      
-      for (const item of items) {
-        if (!item.productId || typeof item.quantity !== 'number' || item.quantity <= 0 || typeof item.unit_price !== 'number' || item.unit_price < 0) {
-           return createResponse(400, { error: 'Invalid items array: items must have productId, quantity (>0), and unit_price (>=0)' });
-        }
+    // Validate items
+    for (const item of body.items) {
+
+      if (
+        !item.productId ||
+        typeof item.quantity !== "number" ||
+        item.quantity <= 0 ||
+        typeof item.price_at_addition !== "number"
+      ) {
+        return createResponse(400, {
+          error:
+            "Each item must contain productId, quantity and price_at_addition"
+        });
       }
     }
 
-    total_amount = items.reduce((total, item) => total + ((item.unit_price || 0) * (item.quantity || 1)), 0);
+    const total_amount = body.items.reduce(
+      (sum, item) =>
+        sum + item.price_at_addition * item.quantity,
+      0
+    );
 
     const order = {
       orderId: uuidv4(),
       userId: body.userId,
-      total_amount,
-      status: 'PENDING',
+      items: body.items,
+      total_amount: total_amount * 1.08 + 15, // Adding 8% tax and $15 shipping
+      status: "PENDING",
       shipping_address: body.shipping_address || {},
-      items: items,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    
-    await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: order }));
-    await publishEvent(TOPIC_ARN, 'OrderCreated', order);
-    
-    return createResponse(201, { success: true, data: order });
+
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: order
+      })
+    );
+
+    // Clear cart synchronously
+    const CART_SERVICE_URL = process.env.CART_SERVICE_URL;
+
+    if (CART_SERVICE_URL) {
+
+      const clearCartRes = await fetch(
+        `${CART_SERVICE_URL}/cart/${body.userId}`,
+        {
+          method: "DELETE"
+        }
+      );
+
+      if (!clearCartRes.ok) {
+
+        logger.error("Failed to clear cart", {
+          status: clearCartRes.status
+        });
+
+        return createResponse(502, {
+          error: "Order created but failed to clear cart"
+        });
+      }
+    }
+
+    // Publish event for downstream services
+    if (TOPIC_ARN) {
+      await publishEvent(
+        TOPIC_ARN,
+        "OrderCreated",
+        order
+      );
+    }
+
+    return createResponse(201, {
+      success: true,
+      data: order
+    });
+  }
+
+  // GET /orders
+  if (path === '/orders' && method === 'GET') {
+    const { Items } = await docClient.send(
+      new ScanCommand({
+        TableName: TABLE_NAME
+      })
+    );
+
+    return createResponse(200, {
+      success: true,
+      count: Items?.length || 0,
+      data: Items || []
+    });
   }
 
   // GET /orders/user/:userId
@@ -132,6 +181,154 @@ const handleApiGatewayEvent = async (event) => {
     const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { orderId } }));
     if (!Item) return createResponse(404, { error: 'Order not found' });
     return createResponse(200, { success: true, data: Item });
+  }
+
+  // PUT /orders/:orderId
+  if (path.includes("/orders/") &&
+      !path.endsWith("/status") &&
+      method === "PUT") {
+
+    const orderId = getOrderId(event, path);
+
+    if (!orderId) {
+      return createResponse(400, {
+        error: "orderId missing from path"
+      });
+    }
+
+    let body;
+
+    try {
+      body = parseBody(event);
+    } catch (err) {
+      return createResponse(400, {
+        error: err.message
+      });
+    }
+
+    const { Item: existingOrder } = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { orderId }
+      })
+    );
+
+    if (!existingOrder) {
+      return createResponse(404, {
+        error: "Order not found"
+      });
+    }
+
+    // Don't allow updating completed/cancelled orders
+    if (
+      existingOrder.status === "PAID" ||
+      existingOrder.status === "CANCELLED" ||
+      existingOrder.status === "DELIVERED"
+    ) {
+      return createResponse(400, {
+        error: `Cannot update ${existingOrder.status} order`
+      });
+    }
+
+    const updatedOrder = {
+      ...existingOrder,
+      shipping_address:
+        body.shipping_address ??
+        existingOrder.shipping_address,
+
+      delivery_instructions:
+        body.delivery_instructions ??
+        existingOrder.delivery_instructions,
+
+      contact_number:
+        body.contact_number ??
+        existingOrder.contact_number,
+
+      updated_at: new Date().toISOString()
+    };
+
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: updatedOrder
+      })
+    );
+
+    await publishEvent(
+      TOPIC_ARN,
+      "OrderUpdated",
+      updatedOrder
+    );
+
+    return createResponse(200, {
+      success: true,
+      data: updatedOrder
+    });
+  }
+
+  // DELETE /orders/:orderId
+  if (path.includes("/orders/") && method === "DELETE") {
+
+    const orderId = getOrderId(event, path);
+
+    if (!orderId) {
+      return createResponse(400, {
+        error: "orderId missing from path"
+      });
+    }
+
+    const { Item: order } = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { orderId }
+      })
+    );
+
+    if (!order) {
+      return createResponse(404, {
+        error: "Order not found"
+      });
+    }
+
+    if (
+      order.status === "PAID" ||
+      order.status === "SHIPPED" ||
+      order.status === "DELIVERED"
+    ) {
+      return createResponse(400, {
+        error: `Cannot cancel ${order.status} order`
+      });
+    }
+
+    const cancelledOrder = {
+      ...order,
+      status: "CANCELLED",
+      updated_at: new Date().toISOString()
+    };
+
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: cancelledOrder
+      })
+    );
+
+    await publishEvent(
+      TOPIC_ARN,
+      "OrderCancelled",
+      {
+        orderId,
+        userId: order.userId,
+        items: order.items,
+        cancelledAt: cancelledOrder.updated_at
+      }
+    );
+
+    return createResponse(200, {
+      success: true,
+      message: "Order cancelled successfully",
+      data: cancelledOrder
+    });
   }
 
   // PUT /orders/:orderId/status
@@ -179,9 +376,38 @@ const handleSqsEvent = async (event) => {
     let newStatus = null;
     
     if (eventType === 'InventoryReserved') newStatus = 'RESERVED';
-    else if (eventType === 'InventoryReservationFailed') newStatus = 'CANCELLED';
-    else if (eventType === 'PaymentSucceeded') newStatus = 'PAID';
-    else if (eventType === 'PaymentFailed') newStatus = 'FAILED';
+    
+    if (eventType === "InventoryReservationFailed") {
+    await publishEvent(
+      TOPIC_ARN,
+      "OrderCancelled",
+      {
+        orderId,
+        userId: payload.userId,
+        items: payload.items,
+        reason: payload.reason || "Inventory reservation failed",
+        cancelledAt: new Date().toISOString()
+      }
+    );
+
+    logger.info(`Published OrderCancelled for orderId: ${orderId}`);
+  }
+    if (eventType === "PaymentSucceeded") {
+    await publishEvent(
+      TOPIC_ARN,
+      "OrderConfirmed",
+      {
+        orderId,
+        userId: payload.userId,
+        items: payload.items,
+        total_amount: payload.total_amount,
+        confirmedAt: new Date().toISOString()
+      }
+    );
+
+    logger.info(`Published OrderConfirmed for orderId: ${orderId}`);
+  }
+    if (eventType === 'PaymentFailed') newStatus = 'FAILED';
 
     if (newStatus) {
       logger.info(`Saga update: Setting orderId ${orderId} to ${newStatus} due to ${eventType}`);

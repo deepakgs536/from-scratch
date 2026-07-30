@@ -1,10 +1,10 @@
-import { GetCommand, UpdateCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, UpdateCommand, PutCommand, ScanCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from './src/dynamodb.js';
 import { publishEvent } from './src/sns.js';
 import { logger } from './src/logger.js';
 
 const TABLE_NAME = process.env.INVENTORY_TABLE || 'InventoryTable';
-const TOPIC_ARN = process.env.INVENTORY_EVENTS_TOPIC_ARN || 'arn:aws:sns:us-east-1:123456789012:inventory-events';
+const TOPIC_ARN = process.env.INVENTORY_EVENTS_TOPIC_ARN;
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -38,6 +38,32 @@ const handleApiGatewayEvent = async (event) => {
   const method = event.httpMethod || (event.requestContext && event.requestContext.http && event.requestContext.http.method) || '';
 
   if (method === 'OPTIONS') return createResponse(200, { success: true });
+
+  // GET /inventory
+  if (path.endsWith("/inventory") && method === "GET") {
+    try {
+      const { Items } = await docClient.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+        })
+      );
+
+      return createResponse(200, {
+        success: true,
+        count: Items?.length || 0,
+        data: Items || [],
+      });
+    } catch (error) {
+      logger.error("Failed to fetch inventory", {
+        error: error.message,
+      });
+
+      return createResponse(500, {
+        success: false,
+        error: "Failed to fetch inventory",
+      });
+    }
+  }
 
   // GET /inventory/:productId
   if (path.includes('/inventory/') && !path.endsWith('/adjust') && method === 'GET') {
@@ -77,6 +103,90 @@ const handleApiGatewayEvent = async (event) => {
     }));
     
     return createResponse(200, { success: true, data: response.Attributes });
+  }
+
+  // PUT /inventory/:productId
+  if (path.includes("/inventory/") && method === "PUT") {
+    const productId = getProductId(event, path);
+
+    if (!productId) {
+      return createResponse(400, {
+        success: false,
+        error: "Product ID missing from path",
+      });
+    }
+
+    let body;
+
+    try {
+      body = parseBody(event);
+    } catch (err) {
+      return createResponse(400, {
+        success: false,
+        error: err.message,
+      });
+    }
+
+    const {
+      available_quantity,
+      reserved_quantity,
+    } = body;
+
+    if (
+      available_quantity === undefined &&
+      reserved_quantity === undefined
+    ) {
+      return createResponse(400, {
+        success: false,
+        error:
+          "At least one of available_quantity or reserved_quantity must be provided",
+      });
+    }
+
+    // Get existing inventory
+    const { Item } = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          productId,
+        },
+      })
+    );
+
+    if (!Item) {
+      return createResponse(404, {
+        success: false,
+        error: "Inventory record not found",
+      });
+    }
+
+    const updatedInventory = {
+      ...Item,
+      available_quantity:
+        available_quantity ?? Item.available_quantity,
+      reserved_quantity:
+        reserved_quantity ?? Item.reserved_quantity,
+      updated_at: new Date().toISOString(),
+    };
+
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: updatedInventory,
+      })
+    );
+
+    if(TOPIC_ARN) await publishEvent(
+      TOPIC_ARN,
+      "InventoryUpdated",
+      updatedInventory
+    );
+
+    return createResponse(200, {
+      success: true,
+      message: "Inventory updated successfully",
+      data: updatedInventory,
+    });
   }
 
   return createResponse(404, { error: 'Not Found' });
@@ -126,13 +236,12 @@ const handleSqsEvent = async (event) => {
           }));
           
           logger.info(`Reserved inventory for productId: ${item.productId}`);
-          // need to update
-          // await publishEvent(TOPIC_ARN, 'InventoryReserved', { orderId, productId: item.productId });
+          if(TOPIC_ARN) await publishEvent(TOPIC_ARN, 'InventoryReserved', { orderId, productId: item.productId });
           
         } catch (error) {
           if (error.name === 'ConditionalCheckFailedException') {
             logger.warn(`Insufficient stock for productId: ${item.productId}`);
-            // await publishEvent(TOPIC_ARN, 'InventoryReservationFailed', { orderId, productId: item.productId, reason: 'Insufficient Stock' });
+            if(TOPIC_ARN) await publishEvent(TOPIC_ARN, 'InventoryReservationFailed', { orderId, productId: item.productId, reason: 'Insufficient Stock' });
           } else {
             logger.error(`Error reserving stock for productId: ${item.productId}`, { error: error.message });
             throw error; // Let the Lambda fail so SQS retries or DLQs this batch
@@ -156,7 +265,129 @@ const handleSqsEvent = async (event) => {
     
       logger.info(`Inventory created for ${payload.productId}`);
     }
-  }
+
+    if (eventType === "ProductDeleted") {
+      const { productId } = payload;
+
+      if (!productId) {
+        logger.warn("ProductDeleted event missing productId");
+        continue;
+      }
+
+      logger.info(`Processing ProductDeleted for productId: ${productId}`);
+
+      try {
+        // Check if inventory exists
+        const { Item } = await docClient.send(
+          new GetCommand({
+            TableName: TABLE_NAME,
+            Key: {
+              productId,
+            },
+          })
+        );
+
+        if (!Item) {
+          logger.warn(`Inventory not found for productId: ${productId}`);
+          continue;
+        }
+
+        // Delete inventory
+        await docClient.send(
+          new DeleteCommand({
+            TableName: TABLE_NAME,
+            Key: {
+              productId,
+            },
+          })
+        );
+
+        logger.info(`Inventory deleted for productId: ${productId}`);
+
+      } catch (error) {
+        logger.error(`Failed to delete inventory for productId: ${productId}`, {
+          error: error.message,
+        });
+
+        throw error; // SQS will retry the message
+      }
+    }
+
+    if (eventType === "PaymentSucceeded") {
+
+      const { orderId } = payload;
+    
+      logger.info(`Processing PaymentSucceeded for ${orderId}`);
+    
+      if (!orderId) {
+        logger.warn("PaymentSucceeded missing orderId");
+        continue;
+      }
+    
+      try {
+    
+        const orderRes = await fetch(
+          `${process.env.ORDER_SERVICE_URL}/orders/${orderId}`
+        );
+    
+        if (!orderRes.ok) {
+          throw new Error(
+            `Failed to fetch order ${orderId}`
+          );
+        }
+    
+        const orderData = await orderRes.json();
+    
+        const order = orderData.data;
+    
+        if (!order || !Array.isArray(order.items)) {
+          logger.warn(`Order ${orderId} has no items`);
+          continue;
+        }
+    
+        for (const item of order.items) {
+    
+          await docClient.send(
+            new UpdateCommand({
+              TableName: TABLE_NAME,
+              Key: {
+                productId: item.productId
+              },
+    
+              UpdateExpression: `
+                SET
+                  reserved_quantity = reserved_quantity - :qty,
+                  updated_at = :now
+              `,
+    
+              ConditionExpression:
+                "reserved_quantity >= :qty",
+    
+              ExpressionAttributeValues: {
+                ":qty": item.quantity,
+                ":now": new Date().toISOString()
+              }
+            })
+          );
+    
+          logger.info(
+            `Finalized stock for ${item.productId}`
+          );
+        }
+    
+      } catch (err) {
+    
+        logger.error(
+          `Failed processing PaymentSucceeded for ${orderId}`,
+          {
+            error: err.message
+          }
+        );
+    
+        throw err;
+      }
+    }
+    }
 };
 
 export const handler = async (event, context) => {

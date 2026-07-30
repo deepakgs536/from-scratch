@@ -1,8 +1,11 @@
 import { GetCommand, PutCommand, DeleteCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from './src/dynamodb.js';
 import { logger } from './src/logger.js';
+import { publishEvent } from "./src/sns.js";
 
 const TABLE_NAME = process.env.CARTS_TABLE || 'CartsTable';
+const TOPIC_ARN = process.env.CART_EVENTS_TOPIC_ARN;
+const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL;
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -123,7 +126,7 @@ const handleApiGatewayEvent = async (event) => {
 
       cart.items[existingItemIndex].quantity += body.quantity;
       cart.items[existingItemIndex].price_at_addition = body.price; 
-    } else {
+      } else {
       cart.items.push({ productId: body.productId, quantity: body.quantity, price_at_addition: body.price });
     }
 
@@ -132,6 +135,126 @@ const handleApiGatewayEvent = async (event) => {
 
     await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: cart }));
     return createResponse(200, { success: true, data: cart });
+  }
+
+  // PUT /cart/:userId/items/:itemId
+  if (method === "PUT" && path.includes("/items/")) {
+    const itemId = getItemId(event, path);
+
+    if (!itemId) {
+      return createResponse(400, {
+        error: "itemId missing from path"
+      });
+    }
+
+    let body;
+    try {
+      body = parseBody(event);
+    } catch (err) {
+      return createResponse(400, {
+        error: err.message
+      });
+    }
+
+    if (typeof body.quantity !== "number" || body.quantity <= 0) {
+      return createResponse(400, {
+        error: "quantity must be greater than 0"
+      });
+    }
+
+    const { Item: cart } = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { userId }
+      })
+    );
+
+    if (!cart) {
+      return createResponse(404, {
+        error: "Cart not found"
+      });
+    }
+
+    const itemIndex = cart.items.findIndex(
+      i => i.productId === itemId
+    );
+
+    if (itemIndex === -1) {
+      return createResponse(404, {
+        error: "Item not found in cart"
+      });
+    }
+
+    // Verify inventory
+    const INVENTORY_SERVICE_URL =
+      process.env.INVENTORY_SERVICE_URL;
+
+    if (INVENTORY_SERVICE_URL) {
+      try {
+        const invRes = await fetch(
+          `${INVENTORY_SERVICE_URL}/inventory/${itemId}`
+        );
+
+        if (!invRes.ok) {
+          return createResponse(502, {
+            error: "Inventory verification failed"
+          });
+        }
+
+        const invData = await invRes.json();
+
+        const available =
+          invData.data?.available_quantity ?? 0;
+
+        if (available < body.quantity) {
+          return createResponse(400, {
+            error: `Only ${available} items available`
+          });
+        }
+
+      } catch (err) {
+        logger.error("Inventory verification failed", {
+          error: err.message
+        });
+
+        return createResponse(502, {
+          error: "Inventory verification failed"
+        });
+      }
+    }
+
+    cart.items[itemIndex].quantity = body.quantity;
+
+    cart.total_price = cart.items.reduce(
+      (sum, item) =>
+        sum + item.quantity * item.price_at_addition,
+      0
+    );
+
+    cart.updated_at = new Date().toISOString();
+
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: cart
+      })
+    );
+
+    // Optional
+    // await publishEvent(
+    //   CART_TOPIC_ARN,
+    //   "CartItemUpdated",
+    //   {
+    //     userId,
+    //     productId: itemId,
+    //     quantity: body.quantity
+    //   }
+    // );
+
+    return createResponse(200, {
+      success: true,
+      data: cart
+    });
   }
 
   // DELETE /cart/:userId/items/:itemId
@@ -149,6 +272,108 @@ const handleApiGatewayEvent = async (event) => {
 
     await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: Item }));
     return createResponse(200, { success: true, data: Item });
+  }
+
+  // POST /cart/:userId/checkout
+  if (
+    method === "POST" &&
+    path.endsWith("/checkout")
+  ) {
+
+    const { Item: cart } = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { userId }
+      })
+    );
+
+    if (!cart || !cart.items || cart.items.length === 0) {
+      return createResponse(400, {
+        error: "Cart is empty"
+      });
+    }
+
+    // Verify inventory
+    const INVENTORY_SERVICE_URL = process.env.INVENTORY_SERVICE_URL;
+
+    if (INVENTORY_SERVICE_URL) {
+
+      for (const item of cart.items) {
+
+        const invRes = await fetch(
+          `${INVENTORY_SERVICE_URL}/inventory/${item.productId}`
+        );
+
+        if (!invRes.ok) {
+          return createResponse(400, {
+            error: `Inventory not found for ${item.productId}`
+          });
+        }
+
+        const invData = await invRes.json();
+
+        if (
+          invData.data.available_quantity <
+          item.quantity
+        ) {
+          return createResponse(400, {
+            error: `Insufficient stock for ${item.productId}`
+          });
+        }
+      }
+    }
+
+    if (!ORDER_SERVICE_URL) {
+      return createResponse(500, {
+        error: "ORDER_SERVICE_URL not configured"
+      });
+    }
+
+    try {
+
+      const orderRes = await fetch(
+        `${ORDER_SERVICE_URL}/orders`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            userId,
+            shipping_address: cart.shipping_address || {},
+            items: cart.items
+          })
+        }
+      );
+
+      const orderData = await orderRes.json();
+
+      if (!orderRes.ok) {
+        return createResponse(
+          orderRes.status,
+          orderData
+        );
+      }
+
+      return createResponse(201, {
+        success: true,
+        message: "Checkout completed successfully",
+        data: orderData.data
+      });
+
+    } catch (err) {
+
+      logger.error(
+        "Failed to contact Order Service",
+        {
+          error: err.message
+        }
+      );
+
+      return createResponse(502, {
+        error: "Unable to create order"
+      });
+    }
   }
 
   return createResponse(404, { error: 'Not Found' });

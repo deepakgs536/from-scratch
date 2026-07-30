@@ -1,0 +1,14 @@
+{
+  "name": "auth-service",
+  "version": "1.0.0",
+  "description": "Auth Service for Cognito Post Confirmation Trigger",
+  "main": "handler.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.723.0",
+    "@aws-sdk/client-sns": "^3.400.0"
+  }
+}

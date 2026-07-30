@@ -1,11 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
-import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, QueryCommand, UpdateCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from './src/dynamodb.js';
 import { publishEvent } from './src/sns.js';
 import { logger } from './src/logger.js';
 
 const TABLE_NAME = process.env.PAYMENTS_TABLE || 'PaymentsTable';
-const TOPIC_ARN = process.env.PAYMENT_EVENTS_TOPIC_ARN || 'arn:aws:sns:us-east-1:123456789012:payment-events';
+const TOPIC_ARN = process.env.PAYMENT_EVENTS_TOPIC_ARN;
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -28,6 +28,15 @@ const getPaymentId = (event, path) => {
   if (event.pathParameters && event.pathParameters.paymentId) return event.pathParameters.paymentId;
   const match = path.match(/\/payments\/([^\/]+)/);
   return match && match[1] !== 'initiate' && match[1] !== 'webhook' ? match[1] : null;
+};
+
+const getOrderIdFromPayment = (event, path) => {
+  if (event.pathParameters && event.pathParameters.orderId) {
+    return event.pathParameters.orderId;
+  }
+
+  const match = path.match(/\/payments\/order\/([^\/]+)/);
+  return match ? match[1] : null;
 };
 
 const handleApiGatewayEvent = async (event) => {
@@ -95,11 +104,11 @@ const handleApiGatewayEvent = async (event) => {
 
       // Broadcast the outcome so Order Service can mark as PAID / FAILED
       if (body.status === 'SUCCESS') {
-        await publishEvent(TOPIC_ARN, 'PaymentSucceeded', Attributes);
+        if(TOPIC_ARN) await publishEvent(TOPIC_ARN, 'PaymentSucceeded', Attributes);
       } else if (body.status === 'FAILED') {
-        await publishEvent(TOPIC_ARN, 'PaymentFailed', Attributes);
+        if(TOPIC_ARN) await publishEvent(TOPIC_ARN, 'PaymentFailed', Attributes);
       } else if (body.status === 'REFUNDED') {
-        await publishEvent(TOPIC_ARN, 'PaymentRefunded', Attributes);
+        if(TOPIC_ARN) await publishEvent(TOPIC_ARN, 'PaymentRefunded', Attributes);
       }
 
       return createResponse(200, { success: true, data: Attributes });
@@ -111,6 +120,48 @@ const handleApiGatewayEvent = async (event) => {
     }
   }
 
+  // GET /payments
+  if (path === "/payments" && method === "GET") {
+
+    const query = event.queryStringParameters || {};
+
+    const pageSize = Number(query.pageSize) || 10;
+
+    let exclusiveStartKey;
+
+    if (query.lastKey) {
+      try {
+        exclusiveStartKey = JSON.parse(
+          Buffer.from(query.lastKey, "base64").toString("utf8")
+        );
+      } catch {
+        return createResponse(400, {
+          success: false,
+          error: "Invalid lastKey"
+        });
+      }
+    }
+
+    const result = await docClient.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        Limit: pageSize,
+        ExclusiveStartKey: exclusiveStartKey
+      })
+    );
+
+    return createResponse(200, {
+      success: true,
+      count: result.Items?.length || 0,
+      data: result.Items || [],
+      nextKey: result.LastEvaluatedKey
+        ? Buffer.from(
+            JSON.stringify(result.LastEvaluatedKey)
+          ).toString("base64")
+        : null
+    });
+  }
+
   // GET /payments/:paymentId
   if (path.includes('/payments/') && !path.endsWith('/initiate') && !path.endsWith('/webhook') && method === 'GET') {
     const paymentId = getPaymentId(event, path);
@@ -119,6 +170,118 @@ const handleApiGatewayEvent = async (event) => {
     const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { paymentId } }));
     if (!Item) return createResponse(404, { error: 'Payment not found' });
     return createResponse(200, { success: true, data: Item });
+  }
+
+  // GET /payments/order/:orderId
+  if (
+    path.includes("/payments/order/") &&
+    method === "GET"
+  ) {
+
+    const orderId = getOrderIdFromPayment(event, path);
+
+    if (!orderId) {
+      return createResponse(400, {
+        error: "orderId missing from path"
+      });
+    }
+
+    const { Items } = await docClient.send(
+      new QueryCommand({
+        TableName: TABLE_NAME,
+        IndexName: "GSI1",
+        KeyConditionExpression:
+          "orderId = :orderId",
+        ExpressionAttributeValues: {
+          ":orderId": orderId
+        }
+      })
+    );
+
+    if (!Items || Items.length === 0) {
+      return createResponse(404, {
+        error: "Payment not found"
+      });
+    }
+
+    return createResponse(200, {
+      success: true,
+      data: Items[0]
+    });
+  }
+
+  // PUT /payments/:paymentId
+  if (
+    path.includes("/payments/") &&
+    !path.endsWith("/initiate") &&
+    !path.endsWith("/webhook") &&
+    method === "PUT"
+  ) {
+
+    const paymentId = getPaymentId(event, path);
+
+    if (!paymentId) {
+      return createResponse(400, {
+        error: "paymentId missing from path"
+      });
+    }
+
+    let body;
+
+    try {
+      body = parseBody(event);
+    } catch (err) {
+      return createResponse(400, {
+        error: err.message
+      });
+    }
+
+    const { Item } = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          paymentId
+        }
+      })
+    );
+
+    if (!Item) {
+      return createResponse(404, {
+        error: "Payment not found"
+      });
+    }
+
+    if (Item.status !== "PENDING") {
+      return createResponse(400, {
+        error: "Only PENDING payments can be updated"
+      });
+    }
+
+    const updatedPayment = {
+      ...Item,
+      payment_method:
+        body.payment_method ??
+        Item.payment_method,
+
+      currency:
+        body.currency ??
+        Item.currency,
+
+      updated_at:
+        new Date().toISOString()
+    };
+
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: updatedPayment
+      })
+    );
+
+    return createResponse(200, {
+      success: true,
+      data: updatedPayment
+    });
   }
 
   return createResponse(404, { error: 'Not Found' });
@@ -144,7 +307,7 @@ const handleSqsEvent = async (event) => {
         paymentId: deterministicPaymentId,
         orderId: orderId,
         userId: userId,
-        amount: total_amount,
+        amount: total_amount * 1.08,
         currency: 'USD',
         status: 'PENDING',
         transaction_id: `mock_txn_${uuidv4().substring(0,8)}`,
@@ -168,6 +331,73 @@ const handleSqsEvent = async (event) => {
         }
       }
     }
+
+    if (eventType === "OrderCancelled") {
+
+    const { orderId } = payload;
+
+    if (!orderId) {
+      continue;
+    }
+
+    const paymentId =
+      `pay_auto_${orderId.replace(/-/g, "")}`;
+
+    const { Item } = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          paymentId
+        }
+      })
+    );
+
+    if (!Item) {
+      logger.warn(
+        `Payment not found for order ${orderId}`
+      );
+      continue;
+    }
+
+    // Don't cancel completed payments
+    if (
+      Item.status === "SUCCESS" ||
+      Item.status === "REFUNDED"
+    ) {
+      continue;
+    }
+
+    const { Attributes } =
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: {
+            paymentId
+          },
+          UpdateExpression:
+            "SET #status=:status, updated_at=:updatedAt",
+          ExpressionAttributeNames: {
+            "#status": "status"
+          },
+          ExpressionAttributeValues: {
+            ":status": "CANCELLED",
+            ":updatedAt":
+              new Date().toISOString()
+          },
+          ReturnValues: "ALL_NEW"
+        })
+      );
+
+    if(TOPIC_ARN) await publishEvent(
+      TOPIC_ARN,
+      "PaymentCancelled",
+      Attributes
+    );
+
+    logger.info(
+      `Published PaymentCancelled for ${paymentId}`
+    );
+  }
   }
 };
 

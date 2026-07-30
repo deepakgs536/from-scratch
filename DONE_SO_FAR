@@ -30,6 +30,15 @@ PROGRESS TRACKER: DONE_SO_FAR
 - [x] Engineered SQS Background Syncing: Configured `handleSqsEvent` to parse incoming `ProductUpdated` and `ProductDeleted` events. It actively scans the `CartsTable` to retroactively strip deleted items out of active user carts, and automatically syncs pricing updates for products already in users' carts.
 - [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
 
+[USER SERVICE]
+- [x] Created `package.json`.
+- [x] Built AWS Lambda native `handler.js`.
+- [x] Engineered Hybrid Event Processing: Implemented a router to distinguish between SQS Background processing and direct API Gateway proxy requests.
+- [x] Engineered API Gateway Endpoints: Implemented `GET /users/:userId`, `GET /users` (admin check), and `PUT /users/:userId` for profile updates.
+- [x] Engineered SQS Saga Consumer: Configured `handleSqsEvent` to process the `UserRegistered` event broadcasted by the Auth Service's PostConfirmation trigger, asynchronously inserting new users into the DynamoDB `UsersTable`.
+- [x] Reused `src/dynamodb.js` and `src/logger.js` identical to other services.
+- [x] Created service-specific `CONFIG.txt` providing AWS Lambda raw zip deployment steps and IAM policies.
+
 [ORDER SERVICE]
 - [x] Created `package.json`.
 - [x] Built AWS Lambda native `handler.js`.

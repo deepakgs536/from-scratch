@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { PutCommand, GetCommand, ScanCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { PutCommand, GetCommand, ScanCommand, DeleteCommand, UpdateCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from './src/dynamodb.js';
 import { publishEvent } from './src/sns.js';
 import { logger } from './src/logger.js';
@@ -12,7 +12,8 @@ const createResponse = (statusCode, body) => ({
   headers: { 
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE"
+    "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization"
   },
   body: JSON.stringify(body)
 });
@@ -34,6 +35,28 @@ const getProductId = (event, path) => {
   return match ? match[1] : null;
 };
 
+// NEW: Smarter Helper function to extract roles from API Gateway Authorizer
+const isAdmin = (event) => {
+  // Check HTTP API v2 first, then REST API v1
+  const groupsData = 
+    event.requestContext?.authorizer?.jwt?.claims?.['cognito:groups'] || 
+    event.requestContext?.authorizer?.claims?.['cognito:groups'];
+    
+  if (!groupsData) return false;
+
+  // If it comes through as a real array (HTTP APIs)
+  if (Array.isArray(groupsData)) {
+    return groupsData.includes('admin');
+  }
+    
+  // If it comes through as a string (REST APIs convert it to "[admin]")
+  if (typeof groupsData === 'string') {
+    return groupsData.includes('admin');
+  }
+
+  return false;
+};
+
 export const handler = async (event, context) => {
   logger.info("Received event", { event });
 
@@ -50,6 +73,31 @@ export const handler = async (event, context) => {
 
     // GET /products
     if (path.endsWith('/products') && method === 'GET') {
+
+      const category = event.queryStringParameters?.category;
+
+      // Filter by category
+      if (category) {
+        const { Items } = await docClient.send(
+          new QueryCommand({
+            TableName: TABLE_NAME,
+            IndexName: "CategoryIndex",
+            KeyConditionExpression: "#category = :category",
+            ExpressionAttributeNames: {
+              "#category": "category",
+            },
+            ExpressionAttributeValues: {
+              ":category": decodeURIComponent(category),
+            },
+          })
+        );
+
+        return createResponse(200, {
+          success: true,
+          data: Items,
+        });
+      }
+
       const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE_NAME }));
       return createResponse(200, { success: true, data: Items });
     }
@@ -66,6 +114,11 @@ export const handler = async (event, context) => {
 
     // POST /products
     if (path.endsWith('/products') && method === 'POST') {
+
+      if (!isAdmin(event)) {
+        return createResponse(403, { error: 'Forbidden: Admin access required to delete products' });
+      }
+
       let body;
       try {
         body = parseBody(event);
@@ -95,9 +148,120 @@ export const handler = async (event, context) => {
       
       return createResponse(201, { success: true, data: product });
     }
+
+    // PUT /products/:id
+    if (path.includes("/products/") && method === "PUT") {
+
+      if (!isAdmin(event)) {
+        return createResponse(403, { error: 'Forbidden: Admin access required to delete products' });
+      }
+
+      let body;
+
+      try {
+        body = parseBody(event);
+      } catch (err) {
+        return createResponse(400, {
+          success: false,
+          error: err.message,
+        });
+      }
+
+      // Get productId from path
+      const productId = getProductId(event, path);
+
+      if (!productId) {
+        return createResponse(400, {
+          success: false,
+          error: "Product ID missing from path",
+        });
+      }
+
+      // Check if at least one field is being updated
+      const updatableFields = [
+        "name",
+        "description",
+        "price",
+        "sku",
+        "category",
+        "image_url",
+        "stock_status",
+      ];
+
+      const hasUpdates = updatableFields.some(
+        (field) => body[field] !== undefined
+      );
+
+      if (!hasUpdates) {
+        return createResponse(400, {
+          success: false,
+          error: "No fields provided to update",
+        });
+      }
+
+      // Fetch existing product
+      const { Item: existingProduct } = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: {
+            productId,
+          },
+        })
+      );
+
+      if (!existingProduct) {
+        return createResponse(404, {
+          success: false,
+          error: "Product not found",
+        });
+      }
+
+      // Build updated product
+      const updatedProduct = {
+        ...existingProduct,
+        name: body.name ?? existingProduct.name,
+        description: body.description ?? existingProduct.description,
+        price:
+          body.price !== undefined
+            ? Number(body.price)
+            : existingProduct.price,
+        sku: body.sku ?? existingProduct.sku,
+        category: body.category ?? existingProduct.category,
+        image_url: body.image_url ?? existingProduct.image_url,
+        stock_status:
+          body.stock_status ?? existingProduct.stock_status,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Save updated product
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: updatedProduct,
+        })
+      );
+
+      // Publish ProductUpdated event
+      await publishEvent(
+        TOPIC_ARN,
+        "ProductUpdated",
+        updatedProduct
+      );
+
+      return createResponse(200, {
+        success: true,
+        message: "Product updated successfully",
+        data: updatedProduct,
+      });
+    }
     
     // DELETE /products/:id
     if (path.includes('/products/') && method === 'DELETE') {
+
+      if (!isAdmin(event)) {
+        return createResponse(403, { error: 'Forbidden: Admin access required to delete products' });
+      }
+
       const id = getProductId(event, path);
       if (!id) return createResponse(400, { error: 'Product ID missing from path' });
 
