@@ -243,7 +243,7 @@ export const handler = async (event, context) => {
 
       // Publish ProductUpdated event
       await publishEvent(
-        TOPIC_ARN,
+        TOPIC_ARN, 
         "ProductUpdated",
         updatedProduct
       );
