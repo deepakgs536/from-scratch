@@ -71,13 +71,52 @@ const handleApiGatewayEvent = async (event) => {
 
   // GET /users/:id
   if (path.includes('/users/') && method === 'GET') {
-    const id = getUserId(event, path);
-    if (!id) return createResponse(400, { error: 'User ID missing from path' });
 
-    const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { userId: id } }));
-    
-    if (!Item) return createResponse(404, { error: 'User not found' });
-    return createResponse(200, { success: true, data: Item });
+    console.log("=== GET USER START ===");
+  
+    const id = getUserId(event, path);
+    console.log("Extracted id:", id);
+
+    console.log("TABLE_NAME:", TABLE_NAME);
+  
+    try {
+      console.log("Calling DynamoDB...");
+  
+      const result = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: {
+            userId: id
+          }
+        })
+      );
+  
+      console.log("DynamoDB raw result:", JSON.stringify(result));
+  
+      if (!result.Item) {
+        console.log("User not found");
+        return createResponse(404, {
+          error: "User not found"
+        });
+      }
+  
+      console.log("Returning user");
+  
+      return createResponse(200, {
+        success: true,
+        data: result.Item
+      });
+  
+    } catch (err) {
+      console.error("DynamoDB Error:", err);
+      console.error("Error Name:", err.name);
+      console.error("Error Message:", err.message);
+      console.error("Stack:", err.stack);
+  
+      return createResponse(500, {
+        error: err.message
+      });
+    }
   }
 
   // PUT /users/:id
@@ -140,7 +179,7 @@ const handleSqsEvent = async (event) => {
     const { eventType, payload } = payloadWrapper;
     
     if (eventType === 'UserRegistered') {
-      const { userId, name, email } = payload;
+      const { userId, name, email, role } = payload;
       
       if (!userId || !email) {
         logger.error('Invalid UserRegistered payload missing required fields', { payload });
@@ -153,7 +192,7 @@ const handleSqsEvent = async (event) => {
         userId,
         name: name || 'Unknown',
         email,
-        role: 'customer',
+        role,
         profile_image_url: '',
         profile_background_url: '',
         created_at: new Date().toISOString(),
@@ -163,6 +202,18 @@ const handleSqsEvent = async (event) => {
       try {
         await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: user }));
         logger.info(`Successfully created user profile in DynamoDB for userId: ${userId}`);
+
+        const verify = await docClient.send(
+          new GetCommand({
+            TableName: TABLE_NAME,
+            Key: {
+              userId
+            }
+          })
+        );
+        
+        console.log("Verification:", JSON.stringify(verify, null, 2));
+        
       } catch (err) {
         logger.error(`Failed to save user ${userId} to DynamoDB`, { error: err.message });
         throw err; // Allow SQS to retry

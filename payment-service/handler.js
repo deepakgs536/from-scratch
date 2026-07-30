@@ -218,6 +218,8 @@ const handleApiGatewayEvent = async (event) => {
     method === "PUT"
   ) {
 
+    console.log("Request reached the put method /payments/:paymentId:", event);
+
     const paymentId = getPaymentId(event, path);
 
     if (!paymentId) {
@@ -267,6 +269,10 @@ const handleApiGatewayEvent = async (event) => {
         body.currency ??
         Item.currency,
 
+      status:
+        body.status ??
+        Item.status,
+
       updated_at:
         new Date().toISOString()
     };
@@ -278,6 +284,33 @@ const handleApiGatewayEvent = async (event) => {
       })
     );
 
+    console.log("payment updated.............", updatedPayment)
+
+    if (updatedPayment.status === "PAID" && body.status == "PAID") {
+      await publishEvent(
+        TOPIC_ARN,
+        "PaymentSucceeded",
+        {
+          paymentId: updatedPayment.paymentId,
+          orderId: updatedPayment.orderId,
+          userId: updatedPayment.userId
+        }
+      );
+    }
+    
+    if (updatedPayment.status === "FAILED") {
+      await publishEvent(
+        TOPIC_ARN,
+        "PaymentFailed",
+        {
+          paymentId: updatedPayment.paymentId,
+          orderId: updatedPayment.orderId,
+          userId: updatedPayment.userId,
+          reason: updatedPayment.failure_reason || "Payment failed"
+        }
+      );
+    }
+    
     return createResponse(200, {
       success: true,
       data: updatedPayment
@@ -307,7 +340,7 @@ const handleSqsEvent = async (event) => {
         paymentId: deterministicPaymentId,
         orderId: orderId,
         userId: userId,
-        amount: total_amount * 1.08,
+        amount: total_amount,
         currency: 'USD',
         status: 'PENDING',
         transaction_id: `mock_txn_${uuidv4().substring(0,8)}`,
