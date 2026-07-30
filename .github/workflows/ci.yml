@@ -248,5 +248,9 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
         with:
-          args: --all-projects
+          args: --all-projects --json-file-output=snyk-report.json
         continue-on-error: true
+      - name: Echo Detailed Snyk Report
+        run: |
+          echo "Here is the detailed Snyk security report:"
+          cat snyk-report.json
