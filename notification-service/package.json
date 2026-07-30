@@ -10,6 +10,7 @@
     "@aws-sdk/client-ses": "^3.400.0"
   },
   "scripts": {
-    "start": "node handler.js"
+    "start": "node handler.js",
+    "test": "node --test"
   }
 }

@@ -11,6 +11,7 @@
     "uuid": "^9.0.0"
   },
   "scripts": {
-    "start": "node handler.js"
+    "start": "node handler.js",
+    "test": "node --test"
   }
 }

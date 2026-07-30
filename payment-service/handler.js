@@ -163,7 +163,7 @@ const handleApiGatewayEvent = async (event) => {
   }
 
   // GET /payments/:paymentId
-  if (path.includes('/payments/') && !path.endsWith('/initiate') && !path.endsWith('/webhook') && method === 'GET') {
+  if (path.includes('/payments/') && !path.includes('/order/') && !path.endsWith('/initiate') && !path.endsWith('/webhook') && method === 'GET') {
     const paymentId = getPaymentId(event, path);
     if (!paymentId) return createResponse(400, { error: 'paymentId missing from path' });
 

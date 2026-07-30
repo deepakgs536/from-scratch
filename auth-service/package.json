@@ -5,7 +5,7 @@
   "main": "handler.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.723.0",
