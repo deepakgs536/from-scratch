@@ -91,7 +91,7 @@ const handleApiGatewayEvent = async (event) => {
       orderId: uuidv4(),
       userId: body.userId,
       items: body.items,
-      total_amount: total_amount * 1.08 + 15, // Adding 8% tax and $15 shipping
+      total_amount: total_amount * 1.08 + 15, // Adding 8% tax and $15 shipping,
       status: "PENDING",
       shipping_address: body.shipping_address || {},
       created_at: new Date().toISOString(),
@@ -166,7 +166,7 @@ const handleApiGatewayEvent = async (event) => {
 
     const { Items } = await docClient.send(new QueryCommand({
       TableName: TABLE_NAME,
-      IndexName: 'GSI1',
+      IndexName: 'UserOrdersIndex',
       KeyConditionExpression: 'userId = :userId',
       ExpressionAttributeValues: { ':userId': userId }
     }));
