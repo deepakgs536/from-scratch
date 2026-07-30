@@ -2,7 +2,7 @@ import { CognitoIdentityProviderClient, AdminAddUserToGroupCommand } from "@aws-
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 
 const cognitoClient = new CognitoIdentityProviderClient({});
-const snsClient = new SNSClient({ region: process.env.AWS_REGION || "us-east-1" });
+const snsClient = new SNSClient({ region: process.env.AWS_REGION || "ap-southeast-1" });
 const SNS_TOPIC_ARN = process.env.USER_EVENTS_TOPIC_ARN;
 
 export const handler = async (event) => {
@@ -37,7 +37,8 @@ export const handler = async (event) => {
             payload: {
               userId: event.userName,
               email: email,
-              name: name
+              name: name,
+              role: groupName 
             }
           });
           

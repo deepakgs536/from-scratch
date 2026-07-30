@@ -3,7 +3,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 import { createLogger } from './src/logger.js';
 
-const region = process.env.AWS_REGION || 'us-east-1';
+const region = process.env.AWS_REGION || 'ap-southeast-1';
 const bucket = process.env.MEDIA_BUCKET;
 const signedUrlExpiry = parseInt(process.env.SIGNED_URL_EXPIRY || '3600', 10);
 
