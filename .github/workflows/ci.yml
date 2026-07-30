@@ -261,6 +261,10 @@ jobs:
           # Generate JSON for the score calculation
           snyk test --all-projects --json > snyk-report.json || true
           
+          echo "================ VULNERABILITY DETAILS ================"
+          cat snyk-report.json | jq -r '.[].vulnerabilities[]? | "[\(.severity | ascii_upcase)] \(.title) in \(.packageName)@\(.version)\n  Path: \(.from | join(" > "))\n"' | sort -u
+          echo "======================================================="
+          
           CRITICAL=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "critical")] | length')
           HIGH=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "high")] | length')
           MEDIUM=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "medium")] | length')
