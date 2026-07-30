@@ -12,16 +12,7 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      product: ${{ steps.filter.outputs.product }}
-      inventory: ${{ steps.filter.outputs.inventory }}
-      cart: ${{ steps.filter.outputs.cart }}
-      order: ${{ steps.filter.outputs.order }}
-      payment: ${{ steps.filter.outputs.payment }}
-      user: ${{ steps.filter.outputs.user }}
-      auth: ${{ steps.filter.outputs.auth }}
-      media: ${{ steps.filter.outputs.media }}
-      analytics: ${{ steps.filter.outputs.analytics }}
-      notification: ${{ steps.filter.outputs.notification }}
+      services: ${{ steps.filter.outputs.changes }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -49,184 +40,16 @@ jobs:
             notification:
               - 'notification-service/**'
 
-  test-product-service:
+  test:
     needs: changes
-    if: ${{ needs.changes.outputs.product == 'true' }}
+    if: ${{ needs.changes.outputs.services != '[]' && needs.changes.outputs.services != '' }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
     defaults:
       run:
-        working-directory: ./product-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
-
-  test-inventory-service:
-    needs: changes
-    if: ${{ needs.changes.outputs.inventory == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./inventory-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
-
-  test-cart-service:
-    needs: changes
-    if: ${{ needs.changes.outputs.cart == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./cart-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
-
-  test-order-service:
-    needs: changes
-    if: ${{ needs.changes.outputs.order == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./order-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
-
-  test-payment-service:
-    needs: changes
-    if: ${{ needs.changes.outputs.payment == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./payment-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
-
-  test-user-service:
-    needs: changes
-    if: ${{ needs.changes.outputs.user == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./user-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
-
-  test-auth-service:
-    needs: changes
-    if: ${{ needs.changes.outputs.auth == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./auth-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
-
-  test-media-service:
-    needs: changes
-    if: ${{ needs.changes.outputs.media == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./media-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
-
-  test-analytics-service:
-    needs: changes
-    if: ${{ needs.changes.outputs.analytics == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./analytics-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
-
-  test-notification-service:
-    needs: changes
-    if: ${{ needs.changes.outputs.notification == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./notification-service
+        working-directory: ./${{ matrix.service }}-service
     
     steps:
       - uses: actions/checkout@v4
