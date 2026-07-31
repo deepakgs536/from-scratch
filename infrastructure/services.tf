@@ -123,7 +123,7 @@ resource "aws_lambda_function" "service_lambda" {
       USERS_TABLE     = aws_dynamodb_table.users.name
       
       # S3 Buckets
-      MEDIA_BUCKET    = aws_s3_bucket.media_bucket.bucket
+
       
       # Dynamically injected SNS Topics
       PRODUCT_EVENTS_TOPIC_ARN   = aws_sns_topic.product_events.arn
@@ -149,27 +149,7 @@ resource "aws_lambda_function" "service_lambda" {
   }
 }
 
-# API Gateway Integration for each Lambda
-resource "aws_apigatewayv2_integration" "service_integration" {
-  for_each = local.services
 
-  api_id           = aws_apigatewayv2_api.shared_gateway.id
-  integration_type = "AWS_PROXY"
-  
-  connection_type        = "INTERNET"
-  integration_uri        = aws_lambda_function.service_lambda[each.key].invoke_arn
-  payload_format_version = "2.0"
-}
-
-# API Gateway Route mapping specific paths to specific integrations
-resource "aws_apigatewayv2_route" "service_routes" {
-  # Convert array to map with route as key
-  for_each = { for r in local.api_routes : r.route => r }
-
-  api_id    = aws_apigatewayv2_api.shared_gateway.id
-  route_key = each.key
-  target    = "integrations/${aws_apigatewayv2_integration.service_integration[each.value.service].id}"
-}
 
 # Lambda Permissions allowing API Gateway to invoke the function
 resource "aws_lambda_permission" "api_gateway_invoke" {

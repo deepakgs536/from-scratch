@@ -1,0 +1,96 @@
+API Gateway Manual Route Configuration Guide
+============================================
+
+Since AWS Academy blocks Terraform from creating API Gateway routes programmatically, 
+you must manually create these routes in the AWS Console for your API Gateway.
+
+Below is the complete list of HTTP methods, routes, and the Lambda function they should point to.
+
+Cart Service
+------------
+GET     /cart/{userId}                      -> lambda-dev-ecommerce-cart
+PUT     /cart/{userId}/items/{itemId}       -> lambda-dev-ecommerce-cart
+POST    /cart/{userId}/items                -> lambda-dev-ecommerce-cart
+DELETE  /cart/{userId}                      -> lambda-dev-ecommerce-cart
+OPTIONS /cart/{userId}/items/{itemId}       -> lambda-dev-ecommerce-cart
+OPTIONS /cart/{userId}/checkout             -> lambda-dev-ecommerce-cart
+POST    /cart/{userId}/checkout             -> lambda-dev-ecommerce-cart
+OPTIONS /cart/{userId}                      -> lambda-dev-ecommerce-cart
+OPTIONS /cart/{userId}/items                -> lambda-dev-ecommerce-cart
+DELETE  /cart/{userId}/items/{itemId}       -> lambda-dev-ecommerce-cart
+
+Payment Service
+---------------
+OPTIONS /payments                           -> lambda-dev-ecommerce-payment
+POST    /payments/initiate                  -> lambda-dev-ecommerce-payment
+POST    /payments/webhook                   -> lambda-dev-ecommerce-payment
+OPTIONS /payments/initiate                  -> lambda-dev-ecommerce-payment
+OPTIONS /payments/webhook                   -> lambda-dev-ecommerce-payment
+GET     /payments                           -> lambda-dev-ecommerce-payment
+GET     /payments/{paymentId}               -> lambda-dev-ecommerce-payment
+PUT     /payments/{paymentId}               -> lambda-dev-ecommerce-payment
+GET     /payments/order/{orderId}           -> lambda-dev-ecommerce-payment
+
+Order Service
+-------------
+OPTIONS /orders                             -> lambda-dev-ecommerce-order
+DELETE  /orders/{orderId}                   -> lambda-dev-ecommerce-order
+PUT     /orders/{orderId}                   -> lambda-dev-ecommerce-order
+OPTIONS /orders/{orderId}/status            -> lambda-dev-ecommerce-order
+OPTIONS /orders/{orderId}                   -> lambda-dev-ecommerce-order
+GET     /orders/{orderId}                   -> lambda-dev-ecommerce-order
+GET     /orders                             -> lambda-dev-ecommerce-order
+PUT     /orders/{orderId}/status            -> lambda-dev-ecommerce-order
+GET     /orders/user/{userId}               -> lambda-dev-ecommerce-order
+OPTIONS /orders/user/{userId}               -> lambda-dev-ecommerce-order
+POST    /orders                             -> lambda-dev-ecommerce-order
+
+Inventory Service
+-----------------
+POST    /inventory/adjust                   -> lambda-dev-ecommerce-inventory
+OPTIONS /inventory/{productId}              -> lambda-dev-ecommerce-inventory
+PUT     /inventory/{productId}              -> lambda-dev-ecommerce-inventory
+OPTIONS /inventory/adjust                   -> lambda-dev-ecommerce-inventory
+GET     /inventory/{productId}              -> lambda-dev-ecommerce-inventory
+OPTIONS /inventory                          -> lambda-dev-ecommerce-inventory
+GET     /inventory                          -> lambda-dev-ecommerce-inventory
+
+Product Service
+---------------
+POST    /products                           -> lambda-dev-ecommerce-product
+OPTIONS /products/{id}                      -> lambda-dev-ecommerce-product
+GET     /products/{id}                      -> lambda-dev-ecommerce-product
+OPTIONS /products                           -> lambda-dev-ecommerce-product
+GET     /products                           -> lambda-dev-ecommerce-product
+DELETE  /products/{id}                      -> lambda-dev-ecommerce-product
+PUT     /products/{id}                      -> lambda-dev-ecommerce-product
+
+Analytics Service
+-----------------
+GET     /analytics/orders                   -> lambda-dev-ecommerce-analytics
+GET     /analytics/health                   -> lambda-dev-ecommerce-analytics
+GET     /analytics/customers                -> lambda-dev-ecommerce-analytics
+GET     /analytics/dashboard                -> lambda-dev-ecommerce-analytics
+GET     /analytics/revenue                  -> lambda-dev-ecommerce-analytics
+GET     /analytics/products                 -> lambda-dev-ecommerce-analytics
+GET     /analytics/payments                 -> lambda-dev-ecommerce-analytics
+GET     /analytics/inventory                -> lambda-dev-ecommerce-analytics
+
+Media Service
+-------------
+OPTIONS /media/health                       -> lambda-dev-ecommerce-media
+GET     /media/download-url                 -> lambda-dev-ecommerce-media
+DELETE  /media                              -> lambda-dev-ecommerce-media
+GET     /media/health                       -> lambda-dev-ecommerce-media
+OPTIONS /media/download-url                 -> lambda-dev-ecommerce-media
+OPTIONS /media/upload-url                   -> lambda-dev-ecommerce-media
+POST    /media/upload-url                   -> lambda-dev-ecommerce-media
+OPTIONS /media                              -> lambda-dev-ecommerce-media
+
+User Service
+------------
+GET     /users/{userId}                     -> lambda-dev-ecommerce-user
+GET     /users                              -> lambda-dev-ecommerce-user
+OPTIONS /users/{userId}                     -> lambda-dev-ecommerce-user
+PUT     /users/{userId}                     -> lambda-dev-ecommerce-user
+OPTIONS /users                              -> lambda-dev-ecommerce-user

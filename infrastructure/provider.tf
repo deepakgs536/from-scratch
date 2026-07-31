@@ -8,7 +8,7 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = "ap-southeast-1"
 
   # This automatically applies these tags to all resources created by this provider!
   default_tags {

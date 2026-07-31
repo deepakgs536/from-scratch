@@ -81,6 +81,3 @@ resource "aws_dynamodb_table" "users" {
   }
 }
 
-resource "aws_s3_bucket" "media_bucket" {
-  bucket = "s3-${var.environment}-${var.project_name}-media"
-}
