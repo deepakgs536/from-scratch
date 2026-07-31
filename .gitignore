@@ -5,3 +5,15 @@ node_modules/
 coverage/
 dist/
 *.log
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+
+# Infrastructure Build
+infrastructure/dist/
+*.zip

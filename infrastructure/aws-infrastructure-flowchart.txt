@@ -1,0 +1,61 @@
+====================================================================================================
+                                E-COMMERCE INFRASTRUCTURE FLOWCHART
+====================================================================================================
+
+[ CLIENT REQUESTS ]
+         |
+         V
++--------------------------------------------------------------------------------------------------+
+|                                        SHARED API GATEWAY                                        |
+|                                     api-dev-ecommerce-gateway                                    |
++--------------------------------------------------------------------------------------------------+
+         |
+         |--- [Routes to] ---> (PRODUCT SERVICE)       [lambda-dev-ecommerce-product]
+         |--- [Routes to] ---> (INVENTORY SERVICE)     [lambda-dev-ecommerce-inventory]
+         |--- [Routes to] ---> (CART SERVICE)          [lambda-dev-ecommerce-cart]
+         |--- [Routes to] ---> (ORDER SERVICE)         [lambda-dev-ecommerce-order]
+         |--- [Routes to] ---> (PAYMENT SERVICE)       [lambda-dev-ecommerce-payment]
+         |--- [Routes to] ---> (USER SERVICE)          [lambda-dev-ecommerce-user]
+         |--- [Routes to] ---> (MEDIA SERVICE)         [lambda-dev-ecommerce-media]
+         |--- [Routes to] ---> (ANALYTICS SERVICE)     [lambda-dev-ecommerce-analytics]
+         |--- [Routes to] ---> (NOTIFICATIONS)         [lambda-dev-ecommerce-notification]
+         |--- [Routes to] ---> (SEARCH SERVICE)        [lambda-dev-ecommerce-search]
+
+
+====================================================================================================
+                                         DATA STORAGE FLOW
+====================================================================================================
+
+[ LAMBDA SERVICE ]                 [ DYNAMODB TABLE / S3 BUCKET ]
+-----------------------------      ---------------------------------------------
+(PRODUCT SERVICE)             ---> [dynamo-dev-ecommerce-products]
+(INVENTORY SERVICE)           ---> [dynamo-dev-ecommerce-inventory]
+(CART SERVICE)                ---> [dynamo-dev-ecommerce-carts]
+(ORDER SERVICE)               ---> [dynamo-dev-ecommerce-orders]
+(PAYMENT SERVICE)             ---> [dynamo-dev-ecommerce-payments]
+(USER SERVICE)                ---> [dynamo-dev-ecommerce-users]
+(MEDIA SERVICE)               ---> [s3-dev-ecommerce-media]
+(ANALYTICS SERVICE)           ---> [dynamo-dev-ecommerce-analytics]
+
+
+====================================================================================================
+                              EVENT-DRIVEN MESSAGING FLOW (SNS -> SQS)
+====================================================================================================
+
+[ PUBLISHER ]              [ SNS TOPIC ]                               [ SUBSCRIBED SQS QUEUES ]
+-------------------------  ------------------------------------------  -------------------------------------
+(PRODUCT SERVICE)     ---> [sns-dev-ecommerce-product-events]     ---> [sqs-dev-ecommerce-analytics-queue]
+                                                                    |
+                                                                    +--> [sqs-dev-ecommerce-inventory-queue]
+                                                                    
+(INVENTORY SERVICE)   ---> [sns-dev-ecommerce-inventory-events]   ---> [sqs-dev-ecommerce-analytics-queue]
+
+(PAYMENT SERVICE)     ---> [sns-dev-ecommerce-payment-events]     ---> [sqs-dev-ecommerce-order-queue]
+                                                                    |
+                                                                    +--> [sqs-dev-ecommerce-inventory-queue]
+
+(ORDER SERVICE)       ---> [sns-dev-ecommerce-order-events]       ---> [sqs-dev-ecommerce-inventory-queue]
+                                                                    |
+                                                                    +--> [sqs-dev-ecommerce-payment-queue]
+
+(USER SERVICE)        ---> [sns-dev-ecommerce-user-events]        ---> [sqs-dev-ecommerce-user-queue]

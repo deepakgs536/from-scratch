@@ -1,0 +1,73 @@
+=======================================================
+AWS E-COMMERCE INFRASTRUCTURE & DATA FLOW ARCHITECTURE
+=======================================================
+
+1. CLIENT ENTRY POINT (API GATEWAY)
+-------------------------------------------------------
+All external requests hit the Shared HTTP API Gateway (api-dev-ecommerce-gateway). 
+The Gateway uses AWS Proxy Integrations to intelligently route the 69 explicitly defined HTTP endpoints (e.g., GET /cart/{userId}, POST /inventory/adjust) to their respective Lambda Microservices.
+
+
+2. COMPUTE LAYER (AWS LAMBDA MICROSERVICES)
+-------------------------------------------------------
+10 Serverless Node.js Microservices execute the business logic:
+- product-service
+- inventory-service
+- cart-service
+- order-service
+- payment-service
+- user-service
+- media-service
+- notification-service
+- analytics-service
+- search-service
+
+Each Lambda function has environment variables automatically injected by Terraform (e.g., Table Names, SQS URLs, SNS ARNs) so they know exactly where to read/write data and publish events.
+
+
+3. DATA STORAGE LAYER (DYNAMODB & S3)
+-------------------------------------------------------
+State is managed across independent DynamoDB tables (PAY_PER_REQUEST) adhering to Database-per-Service patterns:
+- Products Table (Partition Key: productId)
+- Inventory Table (Partition Key: productId)
+- Carts Table (Partition Key: userId)
+- Orders Table (Partition Key: orderId)
+- Payments Table (Partition Key: paymentId)
+- Users Table (Partition Key: userId)
+- Analytics Table (Keys: PK, SK)
+- Media S3 Bucket (Object Storage for images)
+
+
+4. EVENT-DRIVEN MESSAGING FLOW (SNS -> SQS)
+-------------------------------------------------------
+Services publish domain events to SNS Topics, which fan-out asynchronously to SQS Queues consumed by downstream services.
+
+[Product Service]
+  Publishes to -> Product Events Topic (sns-dev-ecommerce-product-events)
+    |-- Subscribed: Analytics Queue (sqs-dev-ecommerce-analytics-queue)
+    |-- Subscribed: Inventory Queue (sqs-dev-ecommerce-inventory-queue)
+
+[Inventory Service]
+  Publishes to -> Inventory Events Topic (sns-dev-ecommerce-inventory-events)
+    |-- Subscribed: Analytics Queue
+
+[Payment Service]
+  Publishes to -> Payment Events Topic (sns-dev-ecommerce-payment-events)
+    |-- Subscribed: Order Queue (sqs-dev-ecommerce-order-queue)
+    |-- Subscribed: Inventory Queue 
+
+[Order Service]
+  Publishes to -> Order Events Topic (sns-dev-ecommerce-order-events)
+    |-- Subscribed: Inventory Queue
+    |-- Subscribed: Payment Queue
+
+[User/Auth Service]
+  Publishes to -> User Events Topic (sns-dev-ecommerce-user-events)
+    |-- Subscribed: User Queue (sqs-dev-ecommerce-user-queue)
+
+
+=======================================================
+PROVISIONING PROCESS
+=======================================================
+The entire infrastructure above is strictly codified using Terraform.
+Command: `terraform apply` -> Terraform automatically creates the resources, wires up IAM policies allowing SNS to write to SQS, securely integrates Lambdas with API Gateway, and injects all dynamic ARNs/URLs into the environment variables.
