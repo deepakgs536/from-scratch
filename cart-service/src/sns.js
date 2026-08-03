@@ -4,7 +4,7 @@ import { logger } from "./logger.js";
 const snsClient = new SNSClient({ region: process.env.AWS_REGION || "us-east-1" });
 
 export const publishEvent = async (topicArn, eventType, payload) => {
-  try {
+  try { 
     const params = {
       TopicArn: topicArn,
       Message: JSON.stringify({ eventType, payload, timestamp: new Date().toISOString() }),

@@ -1,0 +1,55 @@
+name: Reusable Snyk SCA Workflow
+
+on:
+  workflow_call:
+    secrets:
+      SNYK_TOKEN:
+        required: true
+
+jobs:
+  snyk-sca:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Snyk and jq
+        run: |
+          npm install -g snyk
+          sudo apt-get install -y jq
+
+      - name: Run Snyk Security Score Check
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk auth $SNYK_TOKEN
+          snyk test --all-projects || true
+          
+          snyk test --all-projects --json > snyk-report.json || true
+          
+          echo "================ VULNERABILITY DETAILS ================"
+          cat snyk-report.json | jq -r '.[].vulnerabilities[]? | "[\(.severity | ascii_upcase)] \(.title) in \(.packageName)@\(.version)\n  Path: \(.from | join(" > "))\n"' | sort -u
+          echo "======================================================="
+          
+          CRITICAL=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "critical")] | length')
+          HIGH=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "high")] | length')
+          MEDIUM=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "medium")] | length')
+          LOW=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "low")] | length')
+          
+          CRITICAL=${CRITICAL:-0}
+          HIGH=${HIGH:-0}
+          MEDIUM=${MEDIUM:-0}
+          LOW=${LOW:-0}
+          
+          echo "Vulnerabilities found: Critical=$CRITICAL, High=$HIGH, Medium=$MEDIUM, Low=$LOW"
+          
+          SCORE=$((100 - (CRITICAL * 10) - (HIGH * 0) - (MEDIUM * 0) - (LOW * 0)))
+          
+          echo "Calculated Security Score: $SCORE%"
+          
+          if [ "$SCORE" -le 60 ]; then
+            echo "Security score is below or equal to 60%. Failing the build."
+            exit 1
+          else
+            echo "Security test is a success! Score is greater than 60%."
+          fi

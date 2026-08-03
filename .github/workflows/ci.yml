@@ -43,110 +43,39 @@ jobs:
   test:
     needs: changes
     if: ${{ needs.changes.outputs.services != '[]' && needs.changes.outputs.services != '' }}
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         service: ${{ fromJSON(needs.changes.outputs.services) }}
-    defaults:
-      run:
-        working-directory: ./${{ matrix.service }}-service
-    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-      - name: Install dependencies
-        run: npm ci || npm install
-      - name: Run tests
-        run: npm test
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      service: ${{ matrix.service }}
 
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+  security-dependencies:
+    uses: ./.github/workflows/reusable-snyk-sca.yml
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
 
-      - name: Install Snyk and jq
-        run: |
-          npm install -g snyk
-          sudo apt-get install -y jq
+  security-sast:
+    uses: ./.github/workflows/reusable-snyk-sast.yml
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
 
-      - name: Run Snyk Security Score Check
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
-        run: |
-          snyk auth $SNYK_TOKEN
-          # Print the detailed human-readable output first
-          snyk test --all-projects || true
-          
-          # Generate JSON for the score calculation
-          snyk test --all-projects --json > snyk-report.json || true
-          
-          echo "================ VULNERABILITY DETAILS ================"
-          cat snyk-report.json | jq -r '.[].vulnerabilities[]? | "[\(.severity | ascii_upcase)] \(.title) in \(.packageName)@\(.version)\n  Path: \(.from | join(" > "))\n"' | sort -u
-          echo "======================================================="
-          
-          CRITICAL=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "critical")] | length')
-          HIGH=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "high")] | length')
-          MEDIUM=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "medium")] | length')
-          LOW=$(cat snyk-report.json | jq '[.[]? | select(.vulnerabilities != null) | .vulnerabilities[]? | select(.severity == "low")] | length')
-          
-          # Default to 0 if jq fails or returns empty
-          CRITICAL=${CRITICAL:-0}
-          HIGH=${HIGH:-0}
-          MEDIUM=${MEDIUM:-0}
-          LOW=${LOW:-0}
-          
-          echo "Vulnerabilities found: Critical=$CRITICAL, High=$HIGH, Medium=$MEDIUM, Low=$LOW"
-          
-          SCORE=$((100 - (CRITICAL * 10) - (HIGH * 0) - (MEDIUM * 0) - (LOW * 0)))
-          
-          echo "Calculated Security Score: $SCORE%"
-          
-          if [ "$SCORE" -le 60 ]; then
-            echo "Security score is below or equal to 60%. Failing the build."
-            exit 1
-          else
-            echo "Security test is a success! Score is greater than 60%."
-          fi
+  infra-validate:
+    uses: ./.github/workflows/reusable-infra.yml
 
-      - name: Run Snyk Static Code Analysis (SAST)
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
-        run: |
-          snyk auth $SNYK_TOKEN
-          snyk code test --all-projects || true
-
-  deploy-product-service:
-    needs: [test, security]
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./product-service
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          
-      - name: Install Production Dependencies
-        run: npm ci --omit=dev
-        
-      - name: Zip Deployment Package
-        run: zip -r deploy.zip .
-        
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ secrets.AWS_REGION }}
-          
-      - name: Deploy to AWS Lambda
-        run: aws lambda update-function-code --function-name dk-ps-v2 --zip-file fileb://deploy.zip
+  deploy:
+    needs: [changes, test, security-dependencies, security-sast, infra-validate]
+    if: ${{ needs.changes.outputs.services != '[]' && needs.changes.outputs.services != '' }}
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service: ${{ matrix.service }}
+      # Conditional logic: product maps to dk-ps-v2, others map to Terraform generated names
+      function_name: ${{ matrix.service == 'product' && 'dk-ps-v2' || format('lambda-dev-ecommerce-{0}', matrix.service) }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}

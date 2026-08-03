@@ -1,0 +1,24 @@
+name: Reusable Snyk SAST Workflow
+
+on:
+  workflow_call:
+    secrets:
+      SNYK_TOKEN:
+        required: true
+
+jobs:
+  snyk-sast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Snyk
+        run: npm install -g snyk
+
+      - name: Run Snyk Static Code Analysis (SAST)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk auth $SNYK_TOKEN
+          snyk code test --all-projects || true
