@@ -51,29 +51,28 @@ jobs:
       service: ${{ matrix.service }}
 
   security-dependencies:
+    needs: changes
     uses: ./.github/workflows/reusable-snyk-sca.yml
     secrets:
       SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
 
   security-sast:
+    needs: changes
     uses: ./.github/workflows/reusable-snyk-sast.yml
     secrets:
       SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
 
   infra-validate:
+    needs: changes
     uses: ./.github/workflows/reusable-infra.yml
 
   deploy:
     needs: [changes, test, security-dependencies, security-sast, infra-validate]
-    if: ${{ needs.changes.outputs.services != '[]' && needs.changes.outputs.services != '' }}
-    strategy:
-      matrix:
-        service: ${{ fromJSON(needs.changes.outputs.services) }}
+    if: contains(needs.changes.outputs.services, 'product')
     uses: ./.github/workflows/reusable-deploy.yml
     with:
-      service: ${{ matrix.service }}
-      # Conditional logic: product maps to dk-ps-v2, others map to Terraform generated names
-      function_name: ${{ matrix.service == 'product' && 'dk-ps-v2' || format('lambda-dev-ecommerce-{0}', matrix.service) }}
+      service: product
+      function_name: dk-ps-v2
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

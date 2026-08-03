@@ -362,7 +362,7 @@ const handleApiGatewayEvent = async (event) => {
   if (method === 'DELETE' && path.includes('/items/')) {
     const itemId = getItemId(event, path);
     if (!itemId) return createResponse(400, { error: 'itemId missing from path' });
-
+ 
     const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { userId } }));
     if (!Item) return createResponse(404, { error: 'Cart not found' });
 
