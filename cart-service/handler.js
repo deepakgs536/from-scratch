@@ -356,7 +356,7 @@ const handleApiGatewayEvent = async (event) => {
       success: true,
       data: cart
     });
-  }
+  } 
 
   // DELETE /cart/:userId/items/:itemId
   if (method === 'DELETE' && path.includes('/items/')) {

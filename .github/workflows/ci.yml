@@ -112,6 +112,13 @@ jobs:
             echo "Security test is a success! Score is greater than 60%."
           fi
 
+      - name: Run Snyk Static Code Analysis (SAST)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
+        run: |
+          snyk auth $SNYK_TOKEN
+          snyk code test --all-projects || true
+
   deploy-product-service:
     needs: [test, security]
     runs-on: ubuntu-latest

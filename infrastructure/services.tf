@@ -140,11 +140,11 @@ resource "aws_lambda_function" "service_lambda" {
       USER_QUEUE_URL      = aws_sqs_queue.user_queue.id
       
       # Service URLs (all internally route back to the Shared API Gateway!)
-      PRODUCT_SERVICE_URL   = aws_apigatewayv2_api.shared_gateway.api_endpoint
-      INVENTORY_SERVICE_URL = aws_apigatewayv2_api.shared_gateway.api_endpoint
-      ORDER_SERVICE_URL     = aws_apigatewayv2_api.shared_gateway.api_endpoint
-      CART_SERVICE_URL      = aws_apigatewayv2_api.shared_gateway.api_endpoint
-      PAYMENT_SERVICE_URL   = aws_apigatewayv2_api.shared_gateway.api_endpoint
+      PRODUCT_SERVICE_URL   = local.api_endpoint
+      INVENTORY_SERVICE_URL = local.api_endpoint
+      ORDER_SERVICE_URL     = local.api_endpoint
+      CART_SERVICE_URL      = local.api_endpoint
+      PAYMENT_SERVICE_URL   = local.api_endpoint
     }
   }
 }
@@ -159,5 +159,5 @@ resource "aws_lambda_permission" "api_gateway_invoke" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.service_lambda[each.key].function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.shared_gateway.execution_arn}/*/*"
+  source_arn    = "${local.api_execution_arn}/*/*"
 }

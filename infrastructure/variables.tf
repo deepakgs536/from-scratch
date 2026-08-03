@@ -32,3 +32,13 @@ variable "lab_role_arn" {
   type        = string
   description = "The ARN of the AWS Academy LabRole. Must be provided to run Terraform."
 }
+
+variable "api_gateway_type" {
+  type        = string
+  description = "Type of API Gateway to create: 'httpv2' or 'rest'"
+  default     = "httpv2"
+  validation {
+    condition     = contains(["httpv2", "rest"], var.api_gateway_type)
+    error_message = "The api_gateway_type must be either 'httpv2' or 'rest'."
+  }
+}
