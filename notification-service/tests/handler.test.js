@@ -2,15 +2,25 @@ import { test, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import { handler } from '../handler.js';
 import { docClient } from '../src/dynamodb.js';
-import { SESClient } from '@aws-sdk/client-ses';
+import nodemailer from 'nodemailer';
+
+global.fetch = mock.fn(async () => ({
+  ok: true,
+  json: async () => ({ data: { email: 'test@example.com' } })
+}));
 
 beforeEach(() => {
+  process.env.SMTP_USER = 'test@example.com';
+  process.env.SMTP_PASS = 'dummy-pass';
   mock.method(docClient, 'send', async () => ({ Items: [] }));
-  mock.method(SESClient.prototype, 'send', async () => ({ MessageId: 'mocked' }));
+  mock.method(nodemailer, 'createTransport', () => ({
+    sendMail: async () => ({ messageId: 'mocked' })
+  }));
 });
  
 afterEach(() => {
   mock.reset();
+  global.fetch.mock.resetCalls();
 });
 
 const createSqsEvent = (eventType, payload) => ({
