@@ -64,7 +64,7 @@ export const Sidebar = () => {
             <Package className="h-5 w-5" />
           </div>
           <span className={cn("font-extrabold text-lg whitespace-nowrap transition-all duration-300 tracking-tight", isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto")}>
-            Deepak Store
+            Essential.
           </span>
         </div>
         

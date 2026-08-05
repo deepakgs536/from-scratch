@@ -16,7 +16,7 @@ export const Navbar = () => {
           <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center group-hover:scale-105 transition-transform">
             <Package className="h-5 w-5" />
           </div>
-          <span className="font-bold text-lg hidden sm:inline-block tracking-tight">Deepak Store</span>
+          <span className="font-bold text-lg hidden sm:inline-block tracking-tight">Essential.</span>
         </Link>
         
         {!isLandingPage ? (
