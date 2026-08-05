@@ -33,6 +33,10 @@ const getUserId = (event, path) => {
 };
 
 const isAdmin = (event) => {
+  // Allow internal service-to-service calls
+  const internalKey = event.headers?.['x-internal-key'] || event.headers?.['X-Internal-Key'];
+  if (internalKey && internalKey === process.env.INTERNAL_API_KEY) return true;
+
   const groupsData = 
     event.requestContext?.authorizer?.jwt?.claims?.['cognito:groups'] || 
     event.requestContext?.authorizer?.claims?.['cognito:groups'];
@@ -94,10 +98,52 @@ const handleApiGatewayEvent = async (event) => {
       console.log("DynamoDB raw result:", JSON.stringify(result));
   
       if (!result.Item) {
-        console.log("User not found");
-        return createResponse(404, {
-          error: "User not found"
-        });
+        console.log("User not found, attempting to create default profile from token claims.");
+        
+        const claims = event.requestContext?.authorizer?.jwt?.claims
+          || event.requestContext?.authorizer?.claims
+          || {};
+
+        // Cognito JWT claim keys vary by setup — cover all common variants
+        const email = claims.email || claims['cognito:email'] || '';
+        const name  = claims.name
+          || claims['cognito:username']
+          || claims.preferred_username
+          || claims.given_name
+          || email.split('@')[0]   // fallback: use the part before @ in the email
+          || 'Unknown';
+
+        let role = 'customer';
+        const groupsData = claims['cognito:groups'];
+        if (groupsData) {
+          if (Array.isArray(groupsData) && groupsData.includes('admin')) role = 'admin';
+          else if (typeof groupsData === 'string' && groupsData.includes('admin')) role = 'admin';
+        }
+
+        const newUser = {
+          userId: id,
+          name,
+          email,
+          role,
+          profile_image_url: null,
+          profile_background_url: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        try {
+          await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: newUser }));
+          console.log("Created default profile for missing user:", id);
+          return createResponse(200, {
+            success: true,
+            data: newUser
+          });
+        } catch (putErr) {
+          console.error("Failed to auto-create user profile:", putErr);
+          return createResponse(404, {
+            error: "User not found"
+          });
+        }
       }
   
       console.log("Returning user");
@@ -193,8 +239,8 @@ const handleSqsEvent = async (event) => {
         name: name || 'Unknown',
         email,
         role,
-        profile_image_url: '',
-        profile_background_url: '',
+        profile_image_url: null,
+        profile_background_url: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
