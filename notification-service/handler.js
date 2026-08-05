@@ -1,3 +1,4 @@
+// Trigger deployment for missing DynamoDB table fix
 import { PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from './src/dynamodb.js';
 import { sendEmail } from './src/ses.js';

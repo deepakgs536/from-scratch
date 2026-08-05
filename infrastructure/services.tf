@@ -138,6 +138,7 @@ resource "aws_lambda_function" "service_lambda" {
       PAYMENTS_TABLE  = aws_dynamodb_table.payments.name
       ANALYTICS_TABLE = aws_dynamodb_table.analytics.name
       USERS_TABLE     = aws_dynamodb_table.users.name
+      NOTIFICATIONS_TABLE = aws_dynamodb_table.notifications.name
       
       # S3 Buckets
       MEDIA_BUCKET = "deepak-product-images"      
