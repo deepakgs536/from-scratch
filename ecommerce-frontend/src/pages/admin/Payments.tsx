@@ -50,14 +50,17 @@ export const AdminPayments = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING': return <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">Pending</Badge>;
-      case 'COMPLETED': return <Badge className="bg-green-500 hover:bg-green-600">Completed</Badge>;
+      case 'COMPLETED':
+      case 'PAID':
+      case 'SUCCESS': 
+        return <Badge className="bg-green-500 hover:bg-green-600">Completed</Badge>;
       case 'FAILED': return <Badge variant="destructive">Failed</Badge>;
       case 'REFUNDED': return <Badge variant="outline" className="border-blue-500 text-blue-500">Refunded</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
   };
 
-  const totalVolume = payments.filter(p => p.status === 'COMPLETED').reduce((acc, curr) => acc + curr.amount, 0);
+  const totalVolume = payments.filter(p => ['COMPLETED', 'PAID', 'SUCCESS'].includes(p.status)).reduce((acc, curr) => acc + curr.amount, 0);
   const pendingVolume = payments.filter(p => p.status === 'PENDING').reduce((acc, curr) => acc + curr.amount, 0);
 
   return (
