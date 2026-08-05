@@ -394,20 +394,34 @@ const handleSqsEvent = async (event) => {
     logger.info(`Published OrderCancelled for orderId: ${orderId}`);
   }
     if (eventType === "PaymentSucceeded") {
-    await publishEvent(
-      TOPIC_ARN,
-      "OrderConfirmed",
-      {
-        orderId,
-        userId: payload.userId,
-        items: payload.items,
-        total_amount: payload.total_amount,
-        confirmedAt: new Date().toISOString()
+      newStatus = 'PAID';
+      
+      let orderItems = [];
+      let totalAmount = 0;
+      try {
+        const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { orderId } }));
+        if (Item) {
+          orderItems = Item.items || [];
+          totalAmount = Item.total_amount || 0;
+        }
+      } catch (err) {
+        logger.error(`Failed to fetch order ${orderId} for PaymentSucceeded event`, { error: err.message });
       }
-    );
 
-    logger.info(`Published OrderConfirmed for orderId: ${orderId}`);
-  }
+      await publishEvent(
+        TOPIC_ARN,
+        "OrderConfirmed",
+        {
+          orderId,
+          userId: payload.userId,
+          items: orderItems,
+          total_amount: totalAmount,
+          confirmedAt: new Date().toISOString()
+        }
+      );
+
+      logger.info(`Published OrderConfirmed for orderId: ${orderId}`);
+    }
     if (eventType === 'PaymentFailed') newStatus = 'FAILED';
 
     if (newStatus) {
