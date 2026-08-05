@@ -1,0 +1,20 @@
+# Future Plan: Automated Infrastructure Deployment (Terraform CI/CD)
+
+To safely automate `terraform apply` in the GitHub Actions pipeline, the Terraform state must be migrated from local storage (`infrastructure/terraform.tfstate`) to a Remote Backend (AWS S3) so both the local machine and GitHub Actions share the same source of truth.
+
+## Required Steps
+
+### 1. Infrastructure Configuration
+Add the `backend "s3"` configuration block to `provider.tf` to tell Terraform to store state in AWS S3 instead of locally.
+- Requires an S3 bucket (e.g., `deepak-terraform-state-ecommerce`).
+- (Optional but recommended) DynamoDB table for state locking to prevent concurrent apply conflicts.
+
+### 2. Manual State Migration
+Before updating the pipeline, the following manual steps are required:
+1. Refresh AWS credentials locally in the terminal.
+2. Manually create the S3 bucket: `aws s3 mb s3://deepak-terraform-state-ecommerce --region ap-southeast-1`
+3. Run `terraform init -migrate-state` inside the `infrastructure` folder. Terraform will ask to copy the local state to S3. Type `yes`.
+
+### 3. CI/CD Workflows
+- **`reusable-infra.yml`**: Update the workflow to accept AWS credentials. Add the `terraform apply -auto-approve` step, configuring it to only run when changes are pushed to the `main` branch.
+- **`ci.yml`**: Pass the AWS secrets down to the `infra-validate` job and provide the `TF_VAR_lab_role_arn` environment variable so Terraform can deploy resources.
