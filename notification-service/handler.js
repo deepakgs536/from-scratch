@@ -1,7 +1,7 @@
 // Trigger deployment for missing DynamoDB table fix
 import { PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from './src/dynamodb.js';
-import { sendEmail } from './src/ses.js';
+import { sendEmail } from './src/mailer.js';
 import { logger } from './src/logger.js';
 
 const TABLE_NAME = process.env.NOTIFICATIONS_TABLE || 'NotificationsLogTable';

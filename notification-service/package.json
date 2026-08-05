@@ -7,7 +7,7 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.400.0",
     "@aws-sdk/lib-dynamodb": "^3.400.0",
-    "@aws-sdk/client-ses": "^3.400.0"
+    "nodemailer": "^9.0.4"
   },
   "scripts": {
     "start": "node handler.js",
