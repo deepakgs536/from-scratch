@@ -100,9 +100,27 @@ const handleApiGatewayEvent = async (event) => {
       if (!result.Item) {
         console.log("User not found, attempting to create default profile from token claims.");
         
-        const claims = event.requestContext?.authorizer?.jwt?.claims
+        let claims = event.requestContext?.authorizer?.jwt?.claims
           || event.requestContext?.authorizer?.claims
           || {};
+
+        // Fallback: If API Gateway authorizer is missing, decode from Authorization header
+        if (Object.keys(claims).length === 0) {
+          const authHeader = event.headers?.authorization || event.headers?.Authorization;
+          if (authHeader) {
+            try {
+              const token = authHeader.replace(/^Bearer /i, '');
+              const payloadBase64Url = token.split('.')[1];
+              if (payloadBase64Url) {
+                const payloadBase64 = payloadBase64Url.replace(/-/g, '+').replace(/_/g, '/');
+                claims = JSON.parse(Buffer.from(payloadBase64, 'base64').toString('utf8'));
+                console.log("Decoded claims from header:", JSON.stringify(claims));
+              }
+            } catch (e) {
+              console.error("Failed to decode JWT from header:", e);
+            }
+          }
+        }
 
         // Cognito JWT claim keys vary by setup — cover all common variants
         const email = claims.email || claims['cognito:email'] || '';
