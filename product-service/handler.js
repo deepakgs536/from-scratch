@@ -36,6 +36,7 @@ const getProductId = (event, path) => {
 };
 
 // NEW: Smarter Helper function to extract roles from API Gateway Authorizer or raw JWT
+
 const isAdmin = (event) => {
   // Check HTTP API v2 first, then REST API v1
   let groupsData = 
