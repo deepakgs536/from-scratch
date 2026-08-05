@@ -8,6 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Trash2, Minus, Plus, ShoppingBag } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CartItemImage } from '@/components/ui/CartItemImage';
+import { toast } from 'sonner';
 
 const CartItemCard = ({ item }: { item: any }) => {
   const dispatch = useDispatch();
@@ -15,12 +16,25 @@ const CartItemCard = ({ item }: { item: any }) => {
 
   const handleUpdateQuantity = async (newQuantity: number) => {
     if (newQuantity < 1) return;
+    
+    // Optimistic UI update
     dispatch(updateQuantity({ productId: item.productId, quantity: newQuantity }));
+    
     if (user?.id) {
       try {
-        await CartAPI.updateItem(user.id, item.productId, { quantity: newQuantity });
-      } catch (err) {
+        const res = await CartAPI.updateItem(user.id, item.productId, { quantity: newQuantity });
+        if (res.data?.success) {
+          toast.success("Cart updated in backend");
+        } else {
+          toast.error("Backend error: " + JSON.stringify(res.data));
+          // Revert on failure
+          dispatch(updateQuantity({ productId: item.productId, quantity: item.quantity }));
+        }
+      } catch (err: any) {
         console.error("Failed to update cart backend", err);
+        toast.error("Network/API error updating cart: " + err.message);
+        // Revert on failure
+        dispatch(updateQuantity({ productId: item.productId, quantity: item.quantity }));
       }
     }
   };
