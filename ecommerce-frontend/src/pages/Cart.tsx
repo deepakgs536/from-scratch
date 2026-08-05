@@ -2,6 +2,7 @@
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '@/store';
 import { updateQuantity, removeFromCart, clearCart } from '@/store/slices/cartSlice';
+import { CartAPI } from '@/api/services';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Trash2, Minus, Plus, ShoppingBag } from 'lucide-react';
@@ -10,6 +11,30 @@ import { CartItemImage } from '@/components/ui/CartItemImage';
 
 const CartItemCard = ({ item }: { item: any }) => {
   const dispatch = useDispatch();
+  const { user } = useSelector((state: RootState) => state.auth);
+
+  const handleUpdateQuantity = async (newQuantity: number) => {
+    if (newQuantity < 1) return;
+    dispatch(updateQuantity({ productId: item.productId, quantity: newQuantity }));
+    if (user?.id) {
+      try {
+        await CartAPI.updateItem(user.id, item.productId, { quantity: newQuantity });
+      } catch (err) {
+        console.error("Failed to update cart backend", err);
+      }
+    }
+  };
+
+  const handleRemove = async () => {
+    dispatch(removeFromCart(item.productId));
+    if (user?.id) {
+      try {
+        await CartAPI.removeItem(user.id, item.productId);
+      } catch (err) {
+        console.error("Failed to remove from cart backend", err);
+      }
+    }
+  };
 
   return (
     <Card className="flex flex-col sm:flex-row items-center p-4 gap-4 premium-shadow">
@@ -30,7 +55,7 @@ const CartItemCard = ({ item }: { item: any }) => {
             variant="ghost" 
             size="icon" 
             className="h-8 w-8 rounded-r-none"
-            onClick={() => dispatch(updateQuantity({ productId: item.productId, quantity: item.quantity - 1 }))}
+            onClick={() => handleUpdateQuantity(item.quantity - 1)}
           >
             <Minus className="h-3 w-3" />
           </Button>
@@ -39,7 +64,7 @@ const CartItemCard = ({ item }: { item: any }) => {
             variant="ghost" 
             size="icon" 
             className="h-8 w-8 rounded-l-none"
-            onClick={() => dispatch(updateQuantity({ productId: item.productId, quantity: item.quantity + 1 }))}
+            onClick={() => handleUpdateQuantity(item.quantity + 1)}
           >
             <Plus className="h-3 w-3" />
           </Button>
@@ -51,7 +76,7 @@ const CartItemCard = ({ item }: { item: any }) => {
           variant="ghost" 
           size="icon" 
           className="text-destructive hover:bg-destructive/10"
-          onClick={() => dispatch(removeFromCart(item.productId))}
+          onClick={handleRemove}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -62,6 +87,7 @@ const CartItemCard = ({ item }: { item: any }) => {
 
 export const Cart = () => {
   const { items, totalAmount } = useSelector((state: RootState) => state.cart);
+  const { user } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -90,7 +116,10 @@ export const Cart = () => {
             <CartItemCard key={item.productId} item={item} />
           ))}
           <div className="flex justify-end pt-4">
-            <Button variant="outline" onClick={() => dispatch(clearCart())}>Clear Cart</Button>
+            <Button variant="outline" onClick={async () => {
+              dispatch(clearCart());
+              if (user?.id) await CartAPI.clear(user.id);
+            }}>Clear Cart</Button>
           </div>
         </div>
         
