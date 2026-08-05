@@ -175,7 +175,7 @@ const handleSqsEvent = async (event) => {
   for (const record of event.Records) {
     const sqsMessage = typeof record.body === 'string' ? JSON.parse(record.body) : record.body;
     const payloadWrapper = (sqsMessage.Message && typeof sqsMessage.Message === 'string') 
-      ? JSON.parse(sqsMessage.Message) : sqsMessage;
+      ? JSON.parse(sqsMessage.Message) : sqsMessage; 
     
     const { eventType, payload } = payloadWrapper;
     
