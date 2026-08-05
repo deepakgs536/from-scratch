@@ -4,7 +4,13 @@ node_modules/
 .DS_Store
 coverage/
 dist/
+build/
+.eslintcache
 *.log
+
+# Frontend specifics
+ecommerce-frontend/dist/
+ecommerce-frontend/node_modules/
 
 # Terraform
 .terraform/
