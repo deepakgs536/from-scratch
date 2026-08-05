@@ -5,7 +5,29 @@ import { sendEmail } from './src/ses.js';
 import { logger } from './src/logger.js';
 
 const TABLE_NAME = process.env.NOTIFICATIONS_TABLE || 'NotificationsLogTable';
-const TARGET_EMAIL = "deepakgs536@gmail.com"; // Hardcoded per user request
+
+const getUserEmail = async (userId) => {
+  if (!process.env.USER_SERVICE_URL) {
+    logger.warn('USER_SERVICE_URL not set, falling back to deepakgs536@gmail.com');
+    return 'deepakgs536@gmail.com'; // Fallback if env missing
+  }
+  const url = `${process.env.USER_SERVICE_URL}/users/${userId}`;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'x-internal-key': process.env.INTERNAL_API_KEY || ''
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`User service returned ${response.status}`);
+    }
+    const result = await response.json();
+    return result.data?.email;
+  } catch (err) {
+    logger.error('Failed to fetch user email', { error: err.message, userId });
+    return null;
+  }
+};
 
 const logNotification = async (userId, type, status, payload, errorDetails = null) => {
   try {
@@ -84,7 +106,9 @@ const handleOrderCreated = async (payload) => {
   `;
 
   try {
-    await sendEmail(TARGET_EMAIL, subject, bodyHtml);
+    const targetEmail = await getUserEmail(userId);
+    if (!targetEmail) throw new Error(`Could not resolve email for userId ${userId}`);
+    await sendEmail(targetEmail, subject, bodyHtml);
     await logNotification(userId, 'OrderCreatedEmail', 'SENT', payload);
   } catch (err) {
     await logNotification(userId, 'OrderCreatedEmail', 'FAILED', payload, err.message);
@@ -137,7 +161,9 @@ const handleOrderConfirmed = async (payload) => {
   `;
 
   try {
-    await sendEmail(TARGET_EMAIL, subject, bodyHtml);
+    const targetEmail = await getUserEmail(userId);
+    if (!targetEmail) throw new Error(`Could not resolve email for userId ${userId}`);
+    await sendEmail(targetEmail, subject, bodyHtml);
     await logNotification(userId, 'OrderConfirmedEmail', 'SENT', payload);
   } catch (err) {
     await logNotification(userId, 'OrderConfirmedEmail', 'FAILED', payload, err.message);
