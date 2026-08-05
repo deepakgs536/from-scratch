@@ -35,13 +35,27 @@ const getProductId = (event, path) => {
   return match ? match[1] : null;
 };
 
-// NEW: Smarter Helper function to extract roles from API Gateway Authorizer
+// NEW: Smarter Helper function to extract roles from API Gateway Authorizer or raw JWT
 const isAdmin = (event) => {
   // Check HTTP API v2 first, then REST API v1
-  const groupsData = 
+  let groupsData = 
     event.requestContext?.authorizer?.jwt?.claims?.['cognito:groups'] || 
     event.requestContext?.authorizer?.claims?.['cognito:groups'];
     
+  // Fallback: If API Gateway authorizer is missing, parse the raw JWT from headers
+  if (!groupsData) {
+    const authHeader = event.headers?.authorization || event.headers?.Authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const payload = Buffer.from(token.split('.')[1], 'base64').toString();
+        groupsData = JSON.parse(payload)['cognito:groups'];
+      } catch (e) {
+        logger.warn("Failed to parse raw JWT", { error: e.message });
+      }
+    }
+  }
+
   if (!groupsData) return false;
 
   // If it comes through as a real array (HTTP APIs)

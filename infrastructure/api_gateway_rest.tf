@@ -18,4 +18,5 @@ resource "aws_api_gateway_stage" "rest_stage" {
   deployment_id = aws_api_gateway_deployment.rest_deployment[0].id
   rest_api_id   = aws_api_gateway_rest_api.shared_rest_gateway[0].id
   stage_name    = var.environment
+  xray_tracing_enabled = true
 }

@@ -198,3 +198,50 @@ resource "aws_sqs_queue_policy" "user_queue_policy" {
     ]
   })
 }
+
+# --- NOTIFICATION QUEUE ---
+resource "aws_sqs_queue" "notification_queue" {
+  name = "sqs-${var.environment}-${var.project_name}-notification-queue"
+}
+
+resource "aws_sns_topic_subscription" "order_to_notification" {
+  topic_arn = aws_sns_topic.order_events.arn
+  protocol  = "sqs"
+  endpoint  = aws_sqs_queue.notification_queue.arn
+}
+
+resource "aws_sqs_queue_policy" "notification_queue_policy" {
+  queue_url = aws_sqs_queue.notification_queue.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect    = "Allow"
+        Principal = { Service = "sns.amazonaws.com" }
+        Action    = "sqs:SendMessage"
+        Resource  = aws_sqs_queue.notification_queue.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_sns_topic.order_events.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+# --- EVENT SOURCE MAPPINGS ---
+resource "aws_lambda_event_source_mapping" "sqs_triggers" {
+  for_each = {
+    analytics    = aws_sqs_queue.analytics_queue.arn
+    inventory    = aws_sqs_queue.inventory_queue.arn
+    order        = aws_sqs_queue.order_queue.arn
+    payment      = aws_sqs_queue.payment_queue.arn
+    user         = aws_sqs_queue.user_queue.arn
+    notification = aws_sqs_queue.notification_queue.arn
+  }
+
+  event_source_arn = each.value
+  function_name    = aws_lambda_function.service_lambda[each.key].arn
+  batch_size       = 10
+}

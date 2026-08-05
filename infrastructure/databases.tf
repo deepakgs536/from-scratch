@@ -7,6 +7,17 @@ resource "aws_dynamodb_table" "products" {
     name = "productId"
     type = "S"
   }
+
+  attribute {
+    name = "category"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "CategoryIndex"
+    hash_key           = "category"
+    projection_type    = "ALL"
+  }
 }
 
 resource "aws_dynamodb_table" "inventory" {
@@ -40,6 +51,17 @@ resource "aws_dynamodb_table" "orders" {
     name = "orderId"
     type = "S"
   }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "UserOrdersIndex"
+    hash_key           = "userId"
+    projection_type    = "ALL"
+  }
 }
 
 resource "aws_dynamodb_table" "payments" {
@@ -50,6 +72,17 @@ resource "aws_dynamodb_table" "payments" {
   attribute {
     name = "paymentId"
     type = "S"
+  }
+
+  attribute {
+    name = "orderId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "GSI1"
+    hash_key           = "orderId"
+    projection_type    = "ALL"
   }
 }
 

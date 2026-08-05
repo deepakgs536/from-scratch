@@ -28,31 +28,20 @@ for (const service of services) {
   const servicePath = path.resolve(__dirname, service);
   const zipPath = path.join(distDir, `${service}.zip`);
   
-  // ONLY package the product-service as requested
-  if (service === 'product-service') {
-    console.log(`📦 Packaging ${service}...`);
-    try {
-      console.log('   Installing production dependencies...');
-      execSync('npm ci --omit=dev', { cwd: servicePath, stdio: 'ignore' });
+  console.log(`📦 Packaging ${service}...`);
+  try {
+    console.log('   Installing production dependencies...');
+    execSync('npm ci --omit=dev', { cwd: servicePath, stdio: 'ignore' });
 
-      console.log(`   Creating zip archive...`);
-      if (fs.existsSync(zipPath)) {
-        fs.unlinkSync(zipPath);
-      }
-      
-      execSync(`tar -a -c -f "${zipPath}" *`, { cwd: servicePath, stdio: 'ignore' });
-      console.log(`   ✅ Successfully packaged ${service}.zip`);
-    } catch (err) {
-      console.error(`   ❌ Error packaging ${service}: ${err.message}`);
+    console.log(`   Creating zip archive...`);
+    if (fs.existsSync(zipPath)) {
+      fs.unlinkSync(zipPath);
     }
-  } else {
-    // For all other services, create a valid dummy zip file so Terraform doesn't crash!
-    if (!fs.existsSync(zipPath)) {
-      execSync(`tar -a -c -f "${zipPath}" dummy.txt`, { cwd: distDir, stdio: 'ignore' });
-      console.log(`   ✅ Created dummy zip for ${service}.zip`);
-    } else {
-      console.log(`   ⏩ Skipped ${service} (zip already exists)`);
-    }
+    
+    execSync(`tar -a -c -f "${zipPath}" *`, { cwd: servicePath, stdio: 'ignore' });
+    console.log(`   ✅ Successfully packaged ${service}.zip`);
+  } catch (err) {
+    console.error(`   ❌ Error packaging ${service}: ${err.message}`);
   }
 }
 

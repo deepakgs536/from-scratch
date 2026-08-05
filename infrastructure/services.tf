@@ -95,6 +95,18 @@ locals {
     { route = "OPTIONS /users", service = "user" },
 
     # Ranking Routes - Routing to a default or throwing error (Leaving this out as there is no ranking service in the 10 services. The user can add later)
+    { route = "OPTIONS /payments/{paymentId}", service = "payment" },
+    { route = "OPTIONS /payments/order/{orderId}", service = "payment" },
+    { route = "OPTIONS /analytics/orders", service = "analytics" },
+    { route = "OPTIONS /analytics/health", service = "analytics" },
+    { route = "OPTIONS /analytics/customers", service = "analytics" },
+    { route = "OPTIONS /analytics/dashboard", service = "analytics" },
+    { route = "OPTIONS /analytics/revenue", service = "analytics" },
+    { route = "OPTIONS /analytics/products", service = "analytics" },
+    { route = "OPTIONS /analytics/payments", service = "analytics" },
+    { route = "OPTIONS /analytics/inventory", service = "analytics" },
+    { route = "GET /generate/report", service = "analytics" },
+    { route = "OPTIONS /generate/report", service = "analytics" },
   ]
 }
 
@@ -105,9 +117,14 @@ resource "aws_lambda_function" "service_lambda" {
   handler       = each.value.handler
   runtime       = each.value.runtime
   filename      = "${path.module}/dist/${each.key}-service.zip"
+  timeout       = 29
 
   # Hash triggers redeploy when the zip changes
   source_code_hash = filebase64sha256("${path.module}/dist/${each.key}-service.zip")
+  
+  tracing_config {
+    mode = "Active"
+  }
   
   environment {
     variables = {
@@ -123,8 +140,7 @@ resource "aws_lambda_function" "service_lambda" {
       USERS_TABLE     = aws_dynamodb_table.users.name
       
       # S3 Buckets
-
-      
+      MEDIA_BUCKET = "deepak-product-images"      
       # Dynamically injected SNS Topics
       PRODUCT_EVENTS_TOPIC_ARN   = aws_sns_topic.product_events.arn
       INVENTORY_EVENTS_TOPIC_ARN = aws_sns_topic.inventory_events.arn
@@ -145,6 +161,10 @@ resource "aws_lambda_function" "service_lambda" {
       ORDER_SERVICE_URL     = local.api_endpoint
       CART_SERVICE_URL      = local.api_endpoint
       PAYMENT_SERVICE_URL   = local.api_endpoint
+      USER_SERVICE_URL      = local.api_endpoint
+
+      # Internal service-to-service authentication key
+      INTERNAL_API_KEY = "internal-svc-key-ecomm-2026"
     }
   }
 }
@@ -160,4 +180,11 @@ resource "aws_lambda_permission" "api_gateway_invoke" {
   function_name = aws_lambda_function.service_lambda[each.key].function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${local.api_execution_arn}/*/*"
+}
+
+# Explicitly create CloudWatch Log Groups for each Lambda
+resource "aws_cloudwatch_log_group" "lambda_logs" {
+  for_each          = local.services
+  name              = "/aws/lambda/${aws_lambda_function.service_lambda[each.key].function_name}"
+  retention_in_days = 14
 }

@@ -1,6 +1,6 @@
 import {
   getDashboard, getRevenue, getOrders, getProducts, 
-  getCustomers, getInventory, getPayments, processEvent
+  getCustomers, getInventory, getPayments, processEvent, generateDetailedReport
 } from "../services/analytics_service.js";
 import { logger } from "../utils/logger.js";
 
@@ -14,6 +14,7 @@ export const handleApiRequest = async (path, method) => {
   if (path.endsWith("/analytics/customers")) return await getCustomers();
   if (path.endsWith("/analytics/inventory")) return await getInventory();
   if (path.endsWith("/analytics/payments")) return await getPayments();
+  if (path.endsWith("/generate/report")) return await generateDetailedReport();
 
   return null;
 };
