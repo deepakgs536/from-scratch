@@ -52,10 +52,11 @@ test('GET /users should return 200 if admin', async (t) => {
   assert.strictEqual(JSON.parse(res.body).data.length, 1);
 });
 
-test('GET /users/:id should return 404 if not found', async (t) => {
+test('GET /users/:id should auto-create and return 200 if not found', async (t) => {
   mock.method(docClient, 'send', async () => ({}));
   const res = await handler(userEvent('GET', '/users/u1', null, { id: 'u1' }), {});
-  assert.strictEqual(res.statusCode, 404);
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(JSON.parse(res.body).data.userId, 'u1');
 });
 
 test('GET /users/:id should return 200 if found', async (t) => {

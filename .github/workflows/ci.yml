@@ -68,11 +68,14 @@ jobs:
 
   deploy:
     needs: [changes, test, security-dependencies, security-sast, infra-validate]
-    if: contains(needs.changes.outputs.services, 'product')
+    if: ${{ needs.changes.outputs.services != '[]' && needs.changes.outputs.services != '' }}
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
     uses: ./.github/workflows/reusable-deploy.yml
     with:
-      service: product
-      function_name: dk-ps-v2
+      service: ${{ matrix.service }}
+      function_name: lambda-dev-ecommerce-${{ matrix.service }}
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
