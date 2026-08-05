@@ -16,8 +16,8 @@ export const sendEmail = async (toAddress, subject, bodyHtml, bodyText) => {
   // Expecting SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS to be set in Lambda env vars.
   // Defaults assume Gmail for ease of use.
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '465', 10),
+    host: 'smtp.gmail.com',
+    port: 465,
     secure: true, // true for 465, false for other ports
     auth: {
       user: process.env.SMTP_USER,
