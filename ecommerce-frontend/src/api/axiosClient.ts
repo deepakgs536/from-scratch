@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { toast } from 'sonner';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://pi69mf66hc.execute-api.ap-southeast-1.amazonaws.com';
 
 export const axiosClient = axios.create({
   baseURL,
