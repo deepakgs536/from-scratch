@@ -92,6 +92,59 @@ const handleOrderCreated = async (payload) => {
   }
 };
 
+const handleOrderConfirmed = async (payload) => {
+  const { orderId, userId, total_amount, items } = payload;
+  
+  if (!orderId || !userId) {
+    logger.warn('Skipping OrderConfirmed notification: missing orderId or userId');
+    return;
+  }
+
+  // Idempotency check
+  try {
+    const { Items } = await docClient.send(new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: "userId = :uid",
+      FilterExpression: "payload.orderId = :oid AND notification_type = :type AND #status = :status",
+      ExpressionAttributeNames: { "#status": "status" },
+      ExpressionAttributeValues: { 
+        ":uid": userId, 
+        ":oid": orderId, 
+        ":type": 'OrderConfirmedEmail',
+        ":status": 'SENT'
+      }
+    }));
+    
+    if (Items && Items.length > 0) {
+      logger.warn(`Idempotency caught: OrderConfirmed email already sent for order ${orderId}. Skipping.`);
+      return; 
+    }
+  } catch (err) {
+    logger.error('Failed to perform idempotency query', { error: err.message });
+    throw err;
+  }
+  
+  const subject = `Payment Received - Order Confirmed: ${orderId}`;
+  const itemsListHtml = (items || []).map(i => `<li>Product ${i.productId}: ${i.quantity} x $${i.unit_price}</li>`).join('');
+  
+  const bodyHtml = `
+    <h1>Payment Successful!</h1>
+    <p>Your payment for order <strong>${orderId}</strong> has been successfully processed.</p>
+    <p>Total Amount Paid: <strong>$${total_amount}</strong></p>
+    <h3>Items Confirmed:</h3>
+    <ul>${itemsListHtml}</ul>
+    <p>We are now preparing your items for shipment. We will notify you once it ships!</p>
+  `;
+
+  try {
+    await sendEmail(TARGET_EMAIL, subject, bodyHtml);
+    await logNotification(userId, 'OrderConfirmedEmail', 'SENT', payload);
+  } catch (err) {
+    await logNotification(userId, 'OrderConfirmedEmail', 'FAILED', payload, err.message);
+    throw err;
+  }
+};
+
 const handleSqsEvent = async (event) => {
   for (const record of event.Records) {
     const sqsMessage = typeof record.body === 'string' ? JSON.parse(record.body) : record.body;
@@ -103,6 +156,9 @@ const handleSqsEvent = async (event) => {
     if (eventType === 'OrderCreated') {
       logger.info(`Processing OrderCreated notification for Order ${payload?.orderId}`);
       await handleOrderCreated(payload);
+    } else if (eventType === 'OrderConfirmed') {
+      logger.info(`Processing OrderConfirmed notification for Order ${payload?.orderId}`);
+      await handleOrderConfirmed(payload);
     }
   }
 };
