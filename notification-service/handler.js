@@ -185,7 +185,7 @@ const handleSqsEvent = async (event) => {
     } else if (eventType === 'OrderConfirmed') {
       logger.info(`Processing OrderConfirmed notification for Order ${payload?.orderId}`);
       await handleOrderConfirmed(payload);
-    }
+    } 
   }
 };
 
