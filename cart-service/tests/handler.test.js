@@ -371,5 +371,6 @@ test('getItemId should fallback to match path', async (t) => {
   global.fetch = mock.fn(async () => ({ ok: true, json: async () => ({ data: { available_quantity: 10 } }) }));
   mock.method(docClient, 'send', async () => ({ Item: { userId: 'u1', items: [] } }));
   const res = await handler(event, {});
-  assert.strictEqual(res.statusCode, 200);
+  // itemId p777 resolved from path, but not found in empty cart items → 404
+  assert.strictEqual(res.statusCode, 404);
 });

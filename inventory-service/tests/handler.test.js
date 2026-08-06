@@ -235,8 +235,7 @@ test('publishEvent success', async (t) => {
 
 test('publishEvent failure', async (t) => {
   mock.method(SNSClient.prototype, 'send', async () => { throw new Error('SNS Error'); });
-  await publishEvent('arn', 'TestEvent', {});
-  assert.ok(true);
+  await assert.rejects(async () => await publishEvent('arn', 'TestEvent', {}));
 });
 
 test('parseBody should return 400 on invalid JSON', async (t) => {

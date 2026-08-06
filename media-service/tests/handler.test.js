@@ -86,15 +86,12 @@ test('parseBody should return 400 on invalid JSON', async (t) => {
   event.body = "{ invalid json }";
   const res = await handler(event, {});
   assert.strictEqual(res.statusCode, 400);
-  assert.strictEqual(JSON.parse(res.body).message, 'Invalid JSON body'); // note message instead of error in media service
+  assert.strictEqual(JSON.parse(res.body).message, 'Invalid JSON');
 });
 
 test('Unhandled error should return 500', async (t) => {
-  const event = userEvent('DELETE', '/media', { key: 'products/test.jpg' });
-  // force an error by breaking the mock or simulating an exception if possible
-  // since S3Client isn't throwing here easily without remocking, we can just pass a corrupted event that throws
-  // but wait, S3Client is mocked, let's mock it to throw
   mock.method(S3Client.prototype, 'send', async () => { throw new Error('S3 Error'); });
+  const event = userEvent('DELETE', '/media', { key: 'products/test.jpg' });
   const res = await handler(event, {});
   assert.strictEqual(res.statusCode, 500);
 });

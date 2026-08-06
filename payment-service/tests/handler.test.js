@@ -296,7 +296,7 @@ test('publishEvent failure', async (t) => {
 });
 
 test('parseBody should return 400 on invalid JSON', async (t) => {
-  const event = userEvent('POST', '/payments');
+  const event = userEvent('POST', '/payments/initiate');
   event.body = "{ invalid json }";
   const res = await handler(event, {});
   assert.strictEqual(res.statusCode, 400);
@@ -304,8 +304,7 @@ test('parseBody should return 400 on invalid JSON', async (t) => {
 });
 
 test('getPaymentId should fallback to match path', async (t) => {
-  const event = userEvent('GET', '/payments/p777');
-  event.pathParameters = null;
+  const event = userEvent('GET', '/payments/p777', null, { paymentId: null });
   mock.method(docClient, 'send', async () => ({ Item: { paymentId: 'p777' } }));
   const res = await handler(event, {});
   assert.strictEqual(res.statusCode, 200);
