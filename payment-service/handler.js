@@ -56,7 +56,7 @@ const handleApiGatewayEvent = async (event) => {
     }
 
     const payment = {
-      paymentId: `pay_${uuidv4().replace(/-/g, '')}`, // Using a distinct prefix for manual intents
+      paymentId: `pay_${uuidv4().replaceAll('-', '')}`, // Using a distinct prefix for manual intents
       orderId: body.orderId,
       userId: body.userId,
       amount: body.amount,
@@ -335,7 +335,7 @@ const handleSqsEvent = async (event) => {
       if (!orderId || !userId || typeof total_amount !== 'number') continue;
       
       // Deterministic paymentId to guarantee idempotency against SQS duplicates
-      const deterministicPaymentId = `pay_auto_${orderId.replace(/-/g, '')}`;
+      const deterministicPaymentId = `pay_auto_${orderId.replaceAll('-', '')}`;
 
       const payment = {
         paymentId: deterministicPaymentId,
@@ -375,7 +375,7 @@ const handleSqsEvent = async (event) => {
     }
 
     const paymentId =
-      `pay_auto_${orderId.replace(/-/g, "")}`;
+      `pay_auto_${orderId.replaceAll('-', '')}`;
 
     const { Item } = await docClient.send(
       new GetCommand({

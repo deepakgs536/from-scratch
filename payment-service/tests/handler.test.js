@@ -223,7 +223,7 @@ const createSqsEvent = (eventType, payload) => ({
 });
 
 test('SQS OrderCreated success', async (t) => {
-  const event = createSqsEvent('OrderCreated', { orderId: 'o1', userId: 'u1', total_amount: 100 });
+  const event = createSqsEvent('OrderCreated', { orderId: 'o-1-2-3', userId: 'u1', total_amount: 100 });
   const res = await handler(event, {});
   assert.strictEqual(res.success, true);
 });
@@ -234,14 +234,14 @@ test('SQS OrderCreated idempotency', async (t) => {
     err.name = 'ConditionalCheckFailedException';
     throw err;
   });
-  const event = createSqsEvent('OrderCreated', { orderId: 'o1', userId: 'u1', total_amount: 100 });
+  const event = createSqsEvent('OrderCreated', { orderId: 'o-1-2-3', userId: 'u1', total_amount: 100 });
   const res = await handler(event, {});
   assert.strictEqual(res.success, true);
 });
 
 test('SQS OrderCreated DB error', async (t) => {
   mock.method(docClient, 'send', async () => { throw new Error('DB Error'); });
-  const event = createSqsEvent('OrderCreated', { orderId: 'o1', userId: 'u1', total_amount: 100 });
+  const event = createSqsEvent('OrderCreated', { orderId: 'o-1-2-3', userId: 'u1', total_amount: 100 });
   await assert.rejects(async () => await handler(event, {}));
 });
 
@@ -258,7 +258,7 @@ test('SQS OrderCancelled success', async (t) => {
     if (command.constructor.name === 'UpdateCommand') return { Attributes: { paymentId: 'p1', status: 'CANCELLED' } };
     return {};
   });
-  const event = createSqsEvent('OrderCancelled', { orderId: 'o1' });
+  const event = createSqsEvent('OrderCancelled', { orderId: 'o-1-2-3' });
   const res = await handler(event, {});
   assert.strictEqual(res.success, true);
 });
@@ -271,14 +271,14 @@ test('SQS OrderCancelled missing orderId', async (t) => {
 
 test('SQS OrderCancelled payment not found', async (t) => {
   mock.method(docClient, 'send', async () => ({}));
-  const event = createSqsEvent('OrderCancelled', { orderId: 'o1' });
+  const event = createSqsEvent('OrderCancelled', { orderId: 'o-1-2-3' });
   const res = await handler(event, {});
   assert.strictEqual(res.success, true);
 });
 
 test('SQS OrderCancelled payment already SUCCESS', async (t) => {
   mock.method(docClient, 'send', async () => ({ Item: { paymentId: 'p1', status: 'SUCCESS' } }));
-  const event = createSqsEvent('OrderCancelled', { orderId: 'o1' });
+  const event = createSqsEvent('OrderCancelled', { orderId: 'o-1-2-3' });
   const res = await handler(event, {});
   assert.strictEqual(res.success, true);
 });
