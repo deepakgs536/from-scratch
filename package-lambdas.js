@@ -28,17 +28,19 @@ for (const service of services) {
   const servicePath = path.resolve(__dirname, service);
   const zipPath = path.join(distDir, `${service}.zip`);
   
+  const secureEnv = { ...process.env, PATH: (process.env.PATH || '').split(path.delimiter).filter(p => path.isAbsolute(p)).join(path.delimiter) };
+  
   console.log(`📦 Packaging ${service}...`);
   try {
     console.log('   Installing production dependencies...');
-    execSync('npm ci --omit=dev', { cwd: servicePath, stdio: 'ignore' });
+    execSync('npm ci --omit=dev --ignore-scripts', { cwd: servicePath, stdio: 'ignore', env: secureEnv });
 
     console.log(`   Creating zip archive...`);
     if (fs.existsSync(zipPath)) {
       fs.unlinkSync(zipPath);
     }
     
-    execSync(`tar -a -c -f "${zipPath}" *`, { cwd: servicePath, stdio: 'ignore' });
+    execSync(`tar -a -c -f "${zipPath}" *`, { cwd: servicePath, stdio: 'ignore', env: secureEnv });
     console.log(`   ✅ Successfully packaged ${service}.zip`);
   } catch (err) {
     console.error(`   ❌ Error packaging ${service}: ${err.message}`);
