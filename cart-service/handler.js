@@ -45,7 +45,7 @@ const handleClearCart = async (userId) => {
   return createResponse(200, { success: true, message: 'Cart cleared' });
 };
 
-const verifyProductAndInventory = async (productId, quantity, existingQuantity = 0) => {
+const verifyProductAndInventory = async (productId, quantity, existingQuantity = 0, isCheckout = false) => {
   const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL;
   const INVENTORY_SERVICE_URL = process.env.INVENTORY_SERVICE_URL;
 
@@ -64,7 +64,10 @@ const verifyProductAndInventory = async (productId, quantity, existingQuantity =
     try {
       const invRes = await fetch(`${INVENTORY_SERVICE_URL}/inventory/${productId}`);
       if (invRes.status === 404) return createResponse(404, { error: 'Inventory record not found' });
-      if (!invRes.ok) throw new Error(`Inventory service returned ${invRes.status}`);
+      if (!invRes.ok) {
+        if (isCheckout) return createResponse(400, { error: `Inventory not found for ${productId}` });
+        throw new Error(`Inventory service returned ${invRes.status}`);
+      }
       
       const invData = await invRes.json();
       const available = invData.data ? invData.data.available_quantity : 0;
@@ -73,6 +76,9 @@ const verifyProductAndInventory = async (productId, quantity, existingQuantity =
         return createResponse(400, { error: `Insufficient stock. Only ${available} available.` });
       }
     } catch (err) {
+      if (err.message.includes('Inventory service returned') && isCheckout) {
+          return createResponse(400, { error: err.message });
+      }
       logger.error('Failed to contact Inventory Service', { error: err.message });
       return createResponse(502, { error: 'Inventory verification failed' });
     }
@@ -139,7 +145,7 @@ const handleCheckout = async (userId) => {
   if (!cart || !cart.items || cart.items.length === 0) return createResponse(400, { error: "Cart is empty" });
 
   for (const item of cart.items) {
-    const errorRes = await verifyProductAndInventory(item.productId, item.quantity, 0);
+    const errorRes = await verifyProductAndInventory(item.productId, item.quantity, 0, true);
     if (errorRes) return errorRes;
   }
 
@@ -189,8 +195,14 @@ const handleApiGatewayEvent = async (event) => {
   if (method === 'POST' && path.includes('/items')) return await handleAddItem(event, userId);
   
   const itemId = getItemId(event, path);
-  if (method === "PUT" && path.includes("/items/") && itemId) return await handleUpdateItem(event, userId, itemId);
-  if (method === 'DELETE' && path.includes('/items/') && itemId) return await handleRemoveItem(userId, itemId);
+  if (method === "PUT" && path.includes("/items/")) {
+    if (!itemId) return createResponse(400, { error: 'itemId missing' });
+    return await handleUpdateItem(event, userId, itemId);
+  }
+  if (method === 'DELETE' && path.includes('/items/')) {
+    if (!itemId) return createResponse(400, { error: 'itemId missing' });
+    return await handleRemoveItem(userId, itemId);
+  }
 
   return createResponse(404, { error: 'Not Found' });
 };
