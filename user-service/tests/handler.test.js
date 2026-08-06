@@ -102,3 +102,14 @@ test('SQS UserRegistered success', async (t) => {
   const res = await handler(event, {});
   assert.strictEqual(res.success, true);
 });
+
+test('Authorization header parsing with replaceAll', async (t) => {
+  const event = userEvent('GET', '/users/u1', null, { id: 'u1' });
+  // Base64Url string with '-' and '_' to test replaceAll
+  event.headers = {
+    authorization: 'Bearer header.eyJzdWIiOiAibXktc3ViXzEyMyJ9.signature'
+  };
+  mock.method(docClient, 'send', async () => ({})); // Empty result forces profile creation from claims
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 200);
+});

@@ -141,58 +141,46 @@ export const ProductListing = () => {
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
           
           {/* Category Dropdown */}
-          <div 
-            role="button"
-            className="w-full sm:w-auto relative z-50" 
-            onClick={() => setIsCategoryOpen(!isCategoryOpen)} 
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsCategoryOpen(!isCategoryOpen); }}
-            onBlur={() => setTimeout(() => setIsCategoryOpen(false), 200)} 
-            tabIndex={0}
-          >
-            <div className={`h-12 px-5 flex items-center justify-between gap-3 rounded-full border ${isCategoryOpen ? 'border-primary ring-2 ring-primary/20 bg-white' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} transition-all cursor-pointer text-sm font-semibold text-slate-700 w-full sm:w-56 outline-none`}>
+          <div className="w-full sm:w-auto relative z-50">
+            <button 
+              type="button"
+              className={`h-12 px-5 flex items-center justify-between gap-3 rounded-full border ${isCategoryOpen ? 'border-primary ring-2 ring-primary/20 bg-white' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} transition-all cursor-pointer text-sm font-semibold text-slate-700 w-full sm:w-56 outline-none`}
+              onClick={() => setIsCategoryOpen(!isCategoryOpen)} 
+              onBlur={() => setTimeout(() => setIsCategoryOpen(false), 200)} 
+            >
               <span className="truncate">{selectedCategory}</span>
               <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-300 ${isCategoryOpen ? 'rotate-180' : ''}`} />
-            </div>
+            </button>
             
             {isCategoryOpen && (
               <div className="absolute top-14 left-0 w-full sm:min-w-[224px] bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top">
                 {CATEGORIES.map(option => (
-                  <div 
-                    role="button"
-                    tabIndex={0}
+                  <button 
+                    type="button"
                     key={option}
-                    className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${selectedCategory === option ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${selectedCategory === option ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCategorySelect(option);
                       setIsCategoryOpen(false);
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                        handleCategorySelect(option);
-                        setIsCategoryOpen(false);
-                      }
-                    }}
                   >
                     {option}
                     {selectedCategory === option && <Check className="h-4 w-4" />}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
           </div>
 
           {/* Custom Sort Dropdown */}
-          <div 
-            role="button"
-            className="w-full sm:w-auto relative" 
-            onClick={() => setIsSortOpen(!isSortOpen)} 
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsSortOpen(!isSortOpen); }}
-            onBlur={() => setTimeout(() => setIsSortOpen(false), 200)} 
-            tabIndex={0}
-          >
-            <div className={`h-12 px-5 flex items-center justify-between gap-3 rounded-full border ${isSortOpen ? 'border-primary ring-2 ring-primary/20 bg-white' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} transition-all cursor-pointer text-sm font-semibold text-slate-700 w-full sm:w-56 outline-none`}>
+          <div className="w-full sm:w-auto relative">
+            <button 
+              type="button"
+              className={`h-12 px-5 flex items-center justify-between gap-3 rounded-full border ${isSortOpen ? 'border-primary ring-2 ring-primary/20 bg-white' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'} transition-all cursor-pointer text-sm font-semibold text-slate-700 w-full sm:w-56 outline-none`}
+              onClick={() => setIsSortOpen(!isSortOpen)} 
+              onBlur={() => setTimeout(() => setIsSortOpen(false), 200)} 
+            >
               <span className="truncate">
                 {sortBy === 'price_asc' && 'Price: Low to High'}
                 {sortBy === 'price_desc' && 'Price: High to Low'}
@@ -200,7 +188,7 @@ export const ProductListing = () => {
                 {sortBy === 'category_desc' && 'Category: Z to A'}
               </span>
               <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-300 ${isSortOpen ? 'rotate-180' : ''}`} />
-            </div>
+            </button>
             
             {isSortOpen && (
               <div className="absolute top-14 left-0 w-full sm:min-w-[224px] bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top">
@@ -210,27 +198,19 @@ export const ProductListing = () => {
                   { value: 'category_asc', label: 'Category: A to Z' },
                   { value: 'category_desc', label: 'Category: Z to A' },
                 ].map(option => (
-                  <div 
-                    role="button"
-                    tabIndex={0}
+                  <button 
+                    type="button"
                     key={option.value}
-                    className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${sortBy === option.value ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${sortBy === option.value ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSortBy(option.value);
                       setIsSortOpen(false);
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                        setSortBy(option.value);
-                        setIsSortOpen(false);
-                      }
-                    }}
                   >
                     {option.label}
                     {sortBy === option.value && <Check className="h-4 w-4" />}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -250,7 +230,7 @@ export const ProductListing = () => {
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {[...new Array(8)].map((_, i) => (
+          {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="space-y-4">
               <Skeleton className="h-[400px] w-full rounded-[2rem]" />
               <Skeleton className="h-6 w-3/4 rounded-md" />

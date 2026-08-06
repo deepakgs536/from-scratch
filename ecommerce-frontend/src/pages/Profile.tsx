@@ -543,17 +543,15 @@ export const Profile = () => {
           
           {/* Edit Overlay for Cover */}
           {isEditing && (
-            <div 
-              role="button"
-              tabIndex={0}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-pointer"
+            <button 
+              type="button"
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-pointer border-none"
               onClick={() => editCoverInputRef.current?.click()}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') editCoverInputRef.current?.click(); }}
             >
               <Button variant="secondary" size="lg" className="rounded-full shadow-2xl font-bold pointer-events-none hover:scale-105 transition-transform">
                 <ImageIcon className="w-5 h-5 mr-2" /> Change Cover Photo
               </Button>
-            </div>
+            </button>
           )}
           <input type="file" ref={editCoverInputRef} className="hidden" accept="image/jpeg, image/png, image/webp" onChange={(e) => handleFileChange(e, 'banners')} />
         </div>
@@ -578,16 +576,14 @@ export const Profile = () => {
                   
                   {/* Edit Overlay for Avatar */}
                   {isEditing && (
-                    <div 
-                      role="button"
-                      tabIndex={0}
-                      className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm flex flex-col items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-all duration-300 rounded-full cursor-pointer"
+                    <button 
+                      type="button"
+                      className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm flex flex-col items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-all duration-300 rounded-full cursor-pointer border-none"
                       onClick={() => editAvatarInputRef.current?.click()}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') editAvatarInputRef.current?.click(); }}
                     >
                       <Camera className="w-8 h-8 text-white mb-1 drop-shadow-md" />
                       <span className="text-[11px] text-white font-bold uppercase tracking-wider drop-shadow-md">Update</span>
-                    </div>
+                    </button>
                   )}
                 </div>
               </div>

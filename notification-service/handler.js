@@ -205,6 +205,6 @@ export const handler = async (event, context) => {
   } catch (error) {
     logger.error('Lambda Error', { error: error.message, stack: error.stack });
     // Crucial: throw the error back to Lambda runtime so the SQS message isn't deleted and goes to DLQ
-    if (event && event.Records) throw error; 
+    if (event?.Records) throw error; 
   }
 };

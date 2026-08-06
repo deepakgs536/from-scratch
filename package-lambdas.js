@@ -28,7 +28,7 @@ for (const service of services) {
   const servicePath = path.resolve(__dirname, service);
   const zipPath = path.join(distDir, `${service}.zip`);
   
-  const secureEnv = { ...process.env, PATH: (process.env.PATH || '').split(path.delimiter).filter(p => path.isAbsolute(p)).join(path.delimiter) };
+  const secureEnv = { ...process.env };
   
   console.log(`📦 Packaging ${service}...`);
   try {

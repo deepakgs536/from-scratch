@@ -280,13 +280,13 @@ export const Checkout = () => {
                       <div className="space-y-6">
                         <h3 className="text-lg font-bold flex items-center"><CreditCard className="mr-2 w-5 h-5 text-slate-400" /> Payment Method</h3>
                         <div className="space-y-3">
-                          <label htmlFor="card" className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'card' ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                          <label htmlFor="card" aria-label="Credit / Debit Card" className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'card' ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
                             <div className="flex items-center">
                               <input id="card" type="radio" name="payment" value="card" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} className="w-5 h-5 text-slate-900 focus:ring-slate-900 border-slate-300" />
                               <span className="ml-3 font-bold text-slate-900">Credit / Debit Card</span>
                             </div>
                           </label>
-                          <label htmlFor="paypal" className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'paypal' ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                          <label htmlFor="paypal" aria-label="PayPal" className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'paypal' ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
                             <div className="flex items-center">
                               <input id="paypal" type="radio" name="payment" value="paypal" checked={paymentMethod === 'paypal'} onChange={() => setPaymentMethod('paypal')} className="w-5 h-5 text-slate-900 focus:ring-slate-900 border-slate-300" />
                               <span className="ml-3 font-bold text-slate-900">PayPal</span>
