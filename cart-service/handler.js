@@ -3,7 +3,6 @@ import { docClient } from './src/dynamodb.js';
 import { logger } from './src/logger.js';
 
 const TABLE_NAME = process.env.CARTS_TABLE || 'CartsTable';
-const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL;
 
 const createResponse = (statusCode, body) => ({
   statusCode,
@@ -185,6 +184,7 @@ const handleApiGatewayEvent = async (event) => {
       }
     }
 
+    const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL;
     if (!ORDER_SERVICE_URL) {
       return createResponse(500, {
         error: "ORDER_SERVICE_URL not configured"
@@ -449,6 +449,7 @@ export const handler = async (event, context) => {
       stack: error.stack
     });
   
+    if (event.Records) throw error;
     return createResponse(500, {
       error: error.message
     });

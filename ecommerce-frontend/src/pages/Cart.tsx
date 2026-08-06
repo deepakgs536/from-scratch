@@ -1,7 +1,8 @@
 
+import { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '@/store';
-import { updateQuantity, removeFromCart, clearCart } from '@/store/slices/cartSlice';
+import { updateQuantity, removeFromCart, clearCart, setCart } from '@/store/slices/cartSlice';
 import { CartAPI } from '@/api/services';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -104,6 +105,19 @@ export const Cart = () => {
   const { user } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  // Fetch the latest cart from backend on mount to ensure Redux is in sync
+  useEffect(() => {
+    if (user?.id) {
+      CartAPI.get(user.id)
+        .then((res) => {
+          if (res.data?.success && Array.isArray(res.data.data?.items)) {
+            dispatch(setCart(res.data.data.items));
+          }
+        })
+        .catch((err) => console.error("Failed to fetch backend cart", err));
+    }
+  }, [user?.id, dispatch]);
 
   if (items.length === 0) {
     return (

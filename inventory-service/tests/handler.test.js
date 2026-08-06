@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import { handler } from '../handler.js';
 import { docClient } from '../src/dynamodb.js';
 import { SNSClient } from '@aws-sdk/client-sns';
+import { publishEvent } from '../src/sns.js';
 
 beforeEach(() => {
   mock.method(docClient, 'send', async () => ({}));
@@ -30,6 +31,7 @@ const userEvent = (method, path, body = null, pathParameters = null) => ({
   requestContext: {}
 });
 
+// Basic API Tests
 test('OPTIONS request for CORS', async (t) => {
   const res = await handler({ httpMethod: 'OPTIONS', path: '/inventory' }, {});
   assert.strictEqual(res.statusCode, 200);
@@ -64,40 +66,55 @@ test('GET /inventory/:productId should return 200 if found', async (t) => {
   assert.strictEqual(res.statusCode, 200);
 });
 
+test('GET /inventory/:productId missing id should return 400', async (t) => {
+  const res = await handler(userEvent('GET', '/inventory/', null, null), {});
+  assert.strictEqual(res.statusCode, 400);
+});
+
 test('GET /inventory/:productId should return 404 if not found', async (t) => {
   mock.method(docClient, 'send', async () => ({}));
   const res = await handler(userEvent('GET', '/inventory/1', null, { productId: '1' }), {});
   assert.strictEqual(res.statusCode, 404);
 });
 
-test('POST /inventory/adjust should return 400 on invalid body', async (t) => {
+test('POST /inventory/adjust invalid json', async (t) => {
   const res = await handler(userEvent('POST', '/inventory/adjust', 'not-json'), {});
   assert.strictEqual(res.statusCode, 400);
 });
 
-test('POST /inventory/adjust should return 400 on missing fields', async (t) => {
+test('POST /inventory/adjust missing fields', async (t) => {
   const res = await handler(userEvent('POST', '/inventory/adjust', { productId: '1' }), {});
   assert.strictEqual(res.statusCode, 400);
 });
 
-test('POST /inventory/adjust should return 200 on success', async (t) => {
+test('POST /inventory/adjust success', async (t) => {
   mock.method(docClient, 'send', async () => ({ Attributes: { available_quantity: 15 } }));
   const res = await handler(userEvent('POST', '/inventory/adjust', { productId: '1', quantityChange: 5 }), {});
   assert.strictEqual(res.statusCode, 200);
 });
 
-test('PUT /inventory/:productId should return 400 if no fields passed', async (t) => {
+test('PUT /inventory/:productId missing id', async (t) => {
+  const res = await handler(userEvent('PUT', '/inventory/', { available_quantity: 10 }), {});
+  assert.strictEqual(res.statusCode, 400);
+});
+
+test('PUT /inventory/:productId invalid JSON', async (t) => {
+  const res = await handler(userEvent('PUT', '/inventory/1', 'not-json', { productId: '1' }), {});
+  assert.strictEqual(res.statusCode, 400);
+});
+
+test('PUT /inventory/:productId no fields', async (t) => {
   const res = await handler(userEvent('PUT', '/inventory/1', { unknown: 10 }, { productId: '1' }), {});
   assert.strictEqual(res.statusCode, 400);
 });
 
-test('PUT /inventory/:productId should return 404 if item not found', async (t) => {
+test('PUT /inventory/:productId not found', async (t) => {
   mock.method(docClient, 'send', async () => ({}));
   const res = await handler(userEvent('PUT', '/inventory/1', { available_quantity: 10 }, { productId: '1' }), {});
   assert.strictEqual(res.statusCode, 404);
 });
 
-test('PUT /inventory/:productId should return 200 on success', async (t) => {
+test('PUT /inventory/:productId success', async (t) => {
   mock.method(docClient, 'send', async (command) => {
     if (command.constructor.name === 'GetCommand') return { Item: { productId: '1', available_quantity: 5 } };
     return {};
@@ -115,9 +132,28 @@ const createSqsEvent = (eventType, payload) => ({
 });
 
 test('SQS OrderCreated success', async (t) => {
+  process.env.INVENTORY_EVENTS_TOPIC_ARN = 'arn:aws:sns:test';
   const event = createSqsEvent('OrderCreated', { orderId: 'o1', items: [{ productId: '1', quantity: 2 }] });
   const res = await handler(event, {});
   assert.strictEqual(res.success, true);
+});
+
+test('SQS OrderCreated invalid items array', async (t) => {
+  const event = createSqsEvent('OrderCreated', { orderId: 'o1', items: "not-an-array" });
+  const res = await handler(event, {});
+  assert.strictEqual(res.success, true);
+});
+
+test('SQS OrderCreated invalid item', async (t) => {
+  const event = createSqsEvent('OrderCreated', { orderId: 'o1', items: [{ unknown: 1 }] });
+  const res = await handler(event, {});
+  assert.strictEqual(res.success, true);
+});
+
+test('SQS OrderCreated generic error', async (t) => {
+  mock.method(docClient, 'send', async () => { throw new Error('DB Error'); });
+  const event = createSqsEvent('OrderCreated', { orderId: 'o1', items: [{ productId: '1', quantity: 2 }] });
+  await assert.rejects(async () => await handler(event, {}));
 });
 
 test('SQS OrderCreated insufficient stock (ConditionalCheckFailed)', async (t) => {
@@ -128,7 +164,7 @@ test('SQS OrderCreated insufficient stock (ConditionalCheckFailed)', async (t) =
   });
   const event = createSqsEvent('OrderCreated', { orderId: 'o1', items: [{ productId: '1', quantity: 999 }] });
   const res = await handler(event, {});
-  assert.strictEqual(res.success, true); // Should handle gracefully
+  assert.strictEqual(res.success, true); 
 });
 
 test('SQS ProductCreated success', async (t) => {
@@ -147,8 +183,57 @@ test('SQS ProductDeleted success', async (t) => {
   assert.strictEqual(res.success, true);
 });
 
+test('SQS ProductDeleted missing productId', async (t) => {
+  const event = createSqsEvent('ProductDeleted', {});
+  const res = await handler(event, {});
+  assert.strictEqual(res.success, true);
+});
+
+test('SQS ProductDeleted not found in DB', async (t) => {
+  mock.method(docClient, 'send', async () => ({})); // returns null Item
+  const event = createSqsEvent('ProductDeleted', { productId: 'p1' });
+  const res = await handler(event, {});
+  assert.strictEqual(res.success, true);
+});
+
+test('SQS ProductDeleted DB error', async (t) => {
+  mock.method(docClient, 'send', async () => { throw new Error('DB Error'); });
+  const event = createSqsEvent('ProductDeleted', { productId: 'p1' });
+  await assert.rejects(async () => await handler(event, {}));
+});
+
 test('SQS PaymentSucceeded success', async (t) => {
   const event = createSqsEvent('PaymentSucceeded', { orderId: 'o1' });
   const res = await handler(event, {});
   assert.strictEqual(res.success, true);
+});
+
+test('SQS PaymentSucceeded missing orderId', async (t) => {
+  const event = createSqsEvent('PaymentSucceeded', {});
+  const res = await handler(event, {});
+  assert.strictEqual(res.success, true);
+});
+
+test('SQS PaymentSucceeded fetch not ok', async (t) => {
+  global.fetch = mock.fn(async () => ({ ok: false }));
+  const event = createSqsEvent('PaymentSucceeded', { orderId: 'o1' });
+  await assert.rejects(async () => await handler(event, {}));
+});
+
+test('SQS PaymentSucceeded no items', async (t) => {
+  global.fetch = mock.fn(async () => ({ ok: true, json: async () => ({ data: {} }) })); // items is missing
+  const event = createSqsEvent('PaymentSucceeded', { orderId: 'o1' });
+  const res = await handler(event, {});
+  assert.strictEqual(res.success, true);
+});
+
+// sns.js coverage
+test('publishEvent success', async (t) => {
+  const res = await publishEvent('arn:test', 'TestEvent', { data: 1 });
+  assert.strictEqual(res.MessageId, 'mocked');
+});
+
+test('publishEvent failure', async (t) => {
+  mock.method(SNSClient.prototype, 'send', async () => { throw new Error('SNS Error'); });
+  await assert.rejects(async () => await publishEvent('arn:test', 'TestEvent', { data: 1 }));
 });

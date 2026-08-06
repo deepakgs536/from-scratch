@@ -3,12 +3,9 @@ import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 
 const cognitoClient = new CognitoIdentityProviderClient({});
 const snsClient = new SNSClient({ region: process.env.AWS_REGION || "ap-southeast-1" });
-const SNS_TOPIC_ARN = process.env.USER_EVENTS_TOPIC_ARN;
-
 export const handler = async (event) => {
-  console.log("Post Confirmation Triggered:", JSON.stringify(event));
-  
   try {
+    console.log("Post Confirmation Triggered:", JSON.stringify(event));
     // We only want to assign the group if they just signed up / confirmed
     if (event.triggerSource === "PostConfirmation_ConfirmSignUp") {
       
@@ -28,6 +25,7 @@ export const handler = async (event) => {
         console.log(`Successfully added user ${event.userName} to group ${groupName}`);
         
         // Publish the UserRegistered event to SNS for the user-service to consume
+        const SNS_TOPIC_ARN = process.env.USER_EVENTS_TOPIC_ARN;
         if (SNS_TOPIC_ARN) {
           const email = userAttributes.email;
           const name = userAttributes.name || "Unknown";
