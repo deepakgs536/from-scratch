@@ -11,6 +11,6 @@
   },
   "scripts": {
     "start": "node handler.js",
-    "test": "node --test"
+    "test": "node --test --experimental-test-coverage --test-reporter=spec --test-reporter=lcov --test-reporter-destination=stdout --test-reporter-destination=lcov.info"
   }
 }

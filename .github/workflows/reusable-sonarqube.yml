@@ -24,6 +24,12 @@ jobs:
         with:
           node-version: 20
 
+      - name: Download all coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage-reports
+          pattern: coverage-*
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@ba3875ecf642b2129de2b589510c81a8b53dbf4e
         env:

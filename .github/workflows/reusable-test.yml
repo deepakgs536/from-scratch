@@ -23,3 +23,9 @@ jobs:
         run: npm ci --ignore-scripts || npm install --ignore-scripts
       - name: Run tests
         run: npm test
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ inputs.service }}
+          path: ./${{ inputs.service }}-service/lcov.info
+          retention-days: 1

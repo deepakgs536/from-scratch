@@ -70,7 +70,7 @@ jobs:
       SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
 
   security-sonarqube:
-    needs: changes
+    needs: [changes, test]
     uses: ./.github/workflows/reusable-sonarqube.yml
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
