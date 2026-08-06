@@ -1,14 +1,12 @@
-
 import { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '@/store';
 import { updateQuantity, removeFromCart, clearCart, setCart } from '@/store/slices/cartSlice';
-import { CartAPI } from '@/api/services';
+import { CartAPI, ProductAPI, MediaAPI } from '@/api/services';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Trash2, Minus, Plus, ShoppingBag } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CartItemImage } from '@/components/ui/CartItemImage';
 import { toast } from 'sonner';
 
 const CartItemCard = ({ item }: { item: any }) => {
@@ -24,18 +22,14 @@ const CartItemCard = ({ item }: { item: any }) => {
     if (user?.id) {
       try {
         const res = await CartAPI.updateItem(user.id, item.productId, { quantity: newQuantity });
-        if (res.data?.success) {
-          toast.success("Cart updated in backend");
-        } else {
-          toast.error("Backend error: " + JSON.stringify(res.data));
+        if (!res.data?.success) {
           // Revert on failure
           dispatch(updateQuantity({ productId: item.productId, quantity: item.quantity }));
+          toast.error('Failed to update quantity');
         }
       } catch (err: any) {
-        console.error("Failed to update cart backend", err);
-        toast.error("Network/API error updating cart: " + err.message);
-        // Revert on failure
         dispatch(updateQuantity({ productId: item.productId, quantity: item.quantity }));
+        toast.error('Network error updating cart');
       }
     }
   };
@@ -46,20 +40,36 @@ const CartItemCard = ({ item }: { item: any }) => {
       try {
         await CartAPI.removeItem(user.id, item.productId);
       } catch (err) {
-        console.error("Failed to remove from cart backend", err);
+        console.error('Failed to remove from cart backend', err);
       }
     }
   };
 
   return (
     <Card className="flex flex-col sm:flex-row items-center p-4 gap-4 premium-shadow">
-      <CartItemImage 
-        item={item} 
-        className="w-24 h-24 object-cover rounded-md bg-muted"
-      />
+      {/* Product image — signed URL resolved on cart load */}
+      <div className="w-24 h-24 shrink-0 rounded-md overflow-hidden bg-muted">
+        {item.image_url ? (
+          <img
+            src={item.image_url}
+            alt={item.name}
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs text-center px-1">
+            No Image
+          </div>
+        )}
+      </div>
+
       <div className="flex-1 text-center sm:text-left">
         <Link to={`/products/${item.productId}`}>
-          <h3 className="font-semibold hover:underline">{item.name}</h3>
+          <h3 className="font-semibold hover:underline line-clamp-2">
+            {item.name && item.name !== item.productId
+              ? item.name
+              : <span className="text-muted-foreground italic text-sm">Loading…</span>}
+          </h3>
         </Link>
         <p className="text-sm text-muted-foreground mb-4 sm:mb-0">${(Number(item.price) || 0).toFixed(2)}</p>
       </div>
@@ -106,17 +116,49 @@ export const Cart = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Fetch the latest cart from backend on mount to ensure Redux is in sync
+  // Fetch cart from backend, then enrich each item with product name + signed image URL
+  // (same pattern as ProductListing.tsx)
   useEffect(() => {
-    if (user?.id) {
-      CartAPI.get(user.id)
-        .then((res) => {
-          if (res.data?.success && Array.isArray(res.data.data?.items)) {
-            dispatch(setCart(res.data.data.items));
-          }
-        })
-        .catch((err) => console.error("Failed to fetch backend cart", err));
-    }
+    if (!user?.id) return;
+
+    CartAPI.get(user.id)
+      .then(async (res) => {
+        if (!res.data?.success || !Array.isArray(res.data.data?.items)) return;
+
+        const backendItems: any[] = res.data.data.items;
+
+        const enriched = await Promise.all(
+          backendItems.map(async (item: any) => {
+            try {
+              const productRes = await ProductAPI.getById(item.productId, true);
+              const product = productRes?.data?.data;
+              if (!product) return item;
+
+              // Resolve signed image URL exactly like ProductListing does
+              let image_url = product.image_url || '';
+              if (image_url && !image_url.startsWith('http')) {
+                try {
+                  const mediaRes = await MediaAPI.getDownloadUrl(image_url);
+                  image_url = mediaRes.data.url;
+                } catch {
+                  image_url = '';
+                }
+              }
+
+              return {
+                ...item,
+                name: product.name || item.productId,
+                image_url,
+              };
+            } catch {
+              return item; // keep as-is on individual product fetch error
+            }
+          })
+        );
+
+        dispatch(setCart(enriched));
+      })
+      .catch((err) => console.error('Failed to fetch backend cart', err));
   }, [user?.id, dispatch]);
 
   if (items.length === 0) {
