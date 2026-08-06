@@ -25,7 +25,7 @@ jobs:
         run: npm test
       - name: Fix lcov paths for SonarQube
         if: always()
-        run: sed -i "s|^SF:|SF:${{ inputs.service }}-service/|g" ./${{ inputs.service }}-service/lcov.info
+        run: sed -i "s|^SF:|SF:${{ inputs.service }}-service/|g" lcov.info
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
