@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { HeartCrack, ShoppingCart, ArrowLeft, Trash2 } from 'lucide-react';
-import { ProductAPI, MediaAPI } from '@/api/services';
+import { ProductAPI, MediaAPI, CartAPI } from '@/api/services';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toggleWishlistItem } from '@/store/slices/wishlistSlice';
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 export const Wishlist = () => {
   const wishlistItems = useSelector((state: RootState) => state.wishlist.items);
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [products, setProducts] = useState<any[]>([]);
@@ -72,15 +72,32 @@ export const Wishlist = () => {
     toast.success("Removed from wishlist");
   };
 
-  const handleAddToCart = (product: any) => {
+  const handleAddToCart = async (product: any) => {
     if (!isAuthenticated) {
       toast.error('Login as Customer');
       navigate('/login');
       return;
     }
 
-    dispatch(addToCart({ ...product, quantity: 1 }));
-    toast.success(`${product.name} added to cart`);
+    const price = Number(product.price) || 0;
+    // Optimistic local update
+    dispatch(addToCart({ ...product, price, quantity: 1 }));
+
+    // Persist to backend
+    if (user?.id) {
+      try {
+        await CartAPI.addItem(user.id, {
+          productId: product.productId,
+          quantity: 1,
+          price,
+        });
+        toast.success(`${product.name} added to cart`);
+      } catch (err: any) {
+        toast.error('Failed to add to cart: ' + err.message);
+      }
+    } else {
+      toast.success(`${product.name} added to cart`);
+    }
   };
 
   if (loading) {

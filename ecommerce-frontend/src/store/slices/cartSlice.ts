@@ -19,7 +19,17 @@ const initialState: CartState = {
   totalAmount: 0,
 };
 
-const calculateTotal = (items: CartItem[]) => items.reduce((total, item) => total + item.price * item.quantity, 0);
+const calculateTotal = (items: CartItem[]) =>
+  items.reduce((total, item) => total + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0);
+
+/** Normalize items coming from the backend (which use price_at_addition) into CartItem shape */
+const normalizeItem = (item: any): CartItem => ({
+  productId: item.productId,
+  name: item.name || item.productId,
+  price: Number(item.price ?? item.price_at_addition ?? 0),
+  quantity: Number(item.quantity) || 1,
+  image_url: item.image_url || '',
+});
 
 initialState.totalAmount = calculateTotal(initialState.items);
 
@@ -51,8 +61,8 @@ const cartSlice = createSlice({
       state.totalAmount = calculateTotal(state.items);
       localStorage.setItem('cart', JSON.stringify(state.items));
     },
-    setCart: (state, action: PayloadAction<CartItem[]>) => {
-      state.items = action.payload;
+    setCart: (state, action: PayloadAction<any[]>) => {
+      state.items = action.payload.map(normalizeItem);
       state.totalAmount = calculateTotal(state.items);
       localStorage.setItem('cart', JSON.stringify(state.items));
     },
