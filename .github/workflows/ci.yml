@@ -61,13 +61,13 @@ jobs:
     needs: changes
     uses: ./.github/workflows/reusable-snyk-sca.yml
     secrets:
-      SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   security-sast:
     needs: changes
     uses: ./.github/workflows/reusable-snyk-sast.yml
     secrets:
-      SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   security-sonarqube:
     needs: [changes, test]
