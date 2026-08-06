@@ -232,8 +232,9 @@ export const Checkout = () => {
                         <h3 className="text-lg font-bold flex items-center"><Truck className="mr-2 w-5 h-5 text-slate-400" /> Shipping Address</h3>
                         <div className="space-y-4">
                           <div className="space-y-2">
-                            <label className="text-sm font-bold text-slate-700">Street Address</label>
+                            <label htmlFor="street" className="text-sm font-bold text-slate-700">Street Address</label>
                             <Input 
+                              id="street"
                               required 
                               value={shipping.street} 
                               onChange={e => setShipping({ ...shipping, street: e.target.value })} 
@@ -242,8 +243,9 @@ export const Checkout = () => {
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-bold text-slate-700">City</label>
+                              <label htmlFor="city" className="text-sm font-bold text-slate-700">City</label>
                               <Input 
+                                id="city"
                                 required 
                                 value={shipping.city} 
                                 onChange={e => setShipping({ ...shipping, city: e.target.value })} 
@@ -251,8 +253,9 @@ export const Checkout = () => {
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-sm font-bold text-slate-700">State</label>
+                              <label htmlFor="state" className="text-sm font-bold text-slate-700">State</label>
                               <Input 
+                                id="state"
                                 required 
                                 value={shipping.state} 
                                 onChange={e => setShipping({ ...shipping, state: e.target.value })} 
@@ -261,8 +264,9 @@ export const Checkout = () => {
                             </div>
                           </div>
                           <div className="space-y-2 w-1/2">
-                            <label className="text-sm font-bold text-slate-700">ZIP Code</label>
+                            <label htmlFor="zip" className="text-sm font-bold text-slate-700">ZIP Code</label>
                             <Input 
+                              id="zip"
                               required 
                               value={shipping.zip} 
                               onChange={e => setShipping({ ...shipping, zip: e.target.value })} 
@@ -276,15 +280,15 @@ export const Checkout = () => {
                       <div className="space-y-6">
                         <h3 className="text-lg font-bold flex items-center"><CreditCard className="mr-2 w-5 h-5 text-slate-400" /> Payment Method</h3>
                         <div className="space-y-3">
-                          <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'card' ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                          <label htmlFor="card" className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'card' ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
                             <div className="flex items-center">
-                              <input type="radio" name="payment" value="card" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} className="w-5 h-5 text-slate-900 focus:ring-slate-900 border-slate-300" />
+                              <input id="card" type="radio" name="payment" value="card" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} className="w-5 h-5 text-slate-900 focus:ring-slate-900 border-slate-300" />
                               <span className="ml-3 font-bold text-slate-900">Credit / Debit Card</span>
                             </div>
                           </label>
-                          <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'paypal' ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                          <label htmlFor="paypal" className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'paypal' ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
                             <div className="flex items-center">
-                              <input type="radio" name="payment" value="paypal" checked={paymentMethod === 'paypal'} onChange={() => setPaymentMethod('paypal')} className="w-5 h-5 text-slate-900 focus:ring-slate-900 border-slate-300" />
+                              <input id="paypal" type="radio" name="payment" value="paypal" checked={paymentMethod === 'paypal'} onChange={() => setPaymentMethod('paypal')} className="w-5 h-5 text-slate-900 focus:ring-slate-900 border-slate-300" />
                               <span className="ml-3 font-bold text-slate-900">PayPal</span>
                             </div>
                           </label>

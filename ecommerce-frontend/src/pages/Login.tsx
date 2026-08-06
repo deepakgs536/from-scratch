@@ -238,7 +238,7 @@ export const Login = () => {
                     transition={{ duration: 0.3 }}
                     className="space-y-2 overflow-hidden"
                   >
-                    <label className="text-sm font-bold text-slate-700">Account Type</label>
+                    <div className="text-sm font-bold text-slate-700">Account Type</div>
                     <div className="flex bg-slate-100 p-1 rounded-xl">
                       <button
                         type="button"
@@ -262,7 +262,7 @@ export const Login = () => {
                   <motion.div layout="position" key="password-field" className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label htmlFor="password" className="text-sm font-bold text-slate-700">Password</label>
-                      {step === 'LOGIN' && <a href="#" className="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Forgot password?</a>}
+                      {step === 'LOGIN' && <button type="button" className="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">Forgot password?</button>}
                     </div>
                     <Input
                       id="password"

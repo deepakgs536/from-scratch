@@ -142,8 +142,10 @@ export const ProductListing = () => {
           
           {/* Category Dropdown */}
           <div 
+            role="button"
             className="w-full sm:w-auto relative z-50" 
             onClick={() => setIsCategoryOpen(!isCategoryOpen)} 
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsCategoryOpen(!isCategoryOpen); }}
             onBlur={() => setTimeout(() => setIsCategoryOpen(false), 200)} 
             tabIndex={0}
           >
@@ -156,12 +158,21 @@ export const ProductListing = () => {
               <div className="absolute top-14 left-0 w-full sm:min-w-[224px] bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top">
                 {CATEGORIES.map(option => (
                   <div 
+                    role="button"
+                    tabIndex={0}
                     key={option}
                     className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${selectedCategory === option ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCategorySelect(option);
                       setIsCategoryOpen(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        handleCategorySelect(option);
+                        setIsCategoryOpen(false);
+                      }
                     }}
                   >
                     {option}
@@ -174,8 +185,10 @@ export const ProductListing = () => {
 
           {/* Custom Sort Dropdown */}
           <div 
+            role="button"
             className="w-full sm:w-auto relative" 
             onClick={() => setIsSortOpen(!isSortOpen)} 
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsSortOpen(!isSortOpen); }}
             onBlur={() => setTimeout(() => setIsSortOpen(false), 200)} 
             tabIndex={0}
           >
@@ -198,12 +211,21 @@ export const ProductListing = () => {
                   { value: 'category_desc', label: 'Category: Z to A' },
                 ].map(option => (
                   <div 
+                    role="button"
+                    tabIndex={0}
                     key={option.value}
                     className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${sortBy === option.value ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSortBy(option.value);
                       setIsSortOpen(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        setSortBy(option.value);
+                        setIsSortOpen(false);
+                      }
                     }}
                   >
                     {option.label}
@@ -228,7 +250,7 @@ export const ProductListing = () => {
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {[...Array(8)].map((_, i) => (
+          {[...new Array(8)].map((_, i) => (
             <div key={i} className="space-y-4">
               <Skeleton className="h-[400px] w-full rounded-[2rem]" />
               <Skeleton className="h-6 w-3/4 rounded-md" />

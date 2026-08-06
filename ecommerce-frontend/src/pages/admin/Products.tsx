@@ -211,8 +211,9 @@ export const AdminProducts = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Name</label>
+                <label htmlFor="edit-name" className="text-sm font-medium">Name</label>
                 <input 
+                  id="edit-name"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   value={editForm.name}
                   onChange={e => setEditForm({...editForm, name: e.target.value})}
@@ -220,18 +221,20 @@ export const AdminProducts = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Price</label>
+                  <label htmlFor="edit-price" className="text-sm font-medium">Price</label>
                   <input 
+                    id="edit-price"
                     type="number"
                     step="0.01"
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     value={editForm.price}
-                    onChange={e => setEditForm({...editForm, price: parseFloat(e.target.value)})}
+                    onChange={e => setEditForm({...editForm, price: Number.parseFloat(e.target.value)})}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Category</label>
+                  <label htmlFor="edit-category" className="text-sm font-medium">Category</label>
                   <input 
+                    id="edit-category"
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     value={editForm.category}
                     onChange={e => setEditForm({...editForm, category: e.target.value})}
@@ -239,8 +242,9 @@ export const AdminProducts = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
+                <label htmlFor="edit-status" className="text-sm font-medium">Status</label>
                 <select 
+                  id="edit-status"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   value={editForm.stock_status}
                   onChange={e => setEditForm({...editForm, stock_status: e.target.value})}

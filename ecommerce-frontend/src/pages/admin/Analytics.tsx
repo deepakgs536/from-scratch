@@ -229,7 +229,7 @@ export const AdminAnalytics = () => {
         <Card className="md:col-span-2 border-none shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] rounded-[2rem] bg-white overflow-hidden">
           <CardHeader className="px-6 pt-6 pb-4 border-b border-slate-50">
             <CardTitle className="text-lg font-bold text-slate-900 flex items-center justify-between">
-              Top Performers
+              Top Performers{' '}
               <span className="text-[10px] font-semibold px-2 py-1 bg-slate-100 text-slate-600 rounded-full uppercase tracking-wider">By Revenue</span>
             </CardTitle>
           </CardHeader>

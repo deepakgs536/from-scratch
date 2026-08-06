@@ -112,7 +112,7 @@ const handleApiGatewayEvent = async (event) => {
               const token = authHeader.replace(/^Bearer /i, '');
               const payloadBase64Url = token.split('.')[1];
               if (payloadBase64Url) {
-                const payloadBase64 = payloadBase64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const payloadBase64 = payloadBase64Url.replaceAll('-', '+').replaceAll('_', '/');
                 claims = JSON.parse(Buffer.from(payloadBase64, 'base64').toString('utf8'));
                 console.log("Decoded claims from header:", JSON.stringify(claims));
               }

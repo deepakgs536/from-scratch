@@ -150,9 +150,9 @@ export const MediaUpload = () => {
               
               <div className="space-y-3 text-sm">
                 <div>
-                  <label className="font-medium mb-1 block text-muted-foreground">S3 Object Key</label>
+                  <label htmlFor="s3-key" className="font-medium mb-1 block text-muted-foreground">S3 Object Key</label>
                   <div className="flex gap-2">
-                    <Input readOnly value={uploadResult.key} className="bg-background font-mono text-xs" />
+                    <Input id="s3-key" readOnly value={uploadResult.key} className="bg-background font-mono text-xs" />
                     <Button variant="outline" size="icon" onClick={() => copyToClipboard(uploadResult.key, 'Key')}>
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -160,9 +160,10 @@ export const MediaUpload = () => {
                 </div>
 
                 <div>
-                  <label className="font-medium mb-1 block text-muted-foreground">Pre-signed Upload URL</label>
+                  <label htmlFor="presigned-url" className="font-medium mb-1 block text-muted-foreground">Pre-signed Upload URL</label>
                   <div className="flex gap-2">
                     <textarea 
+                      id="presigned-url"
                       readOnly 
                       value={uploadResult.uploadUrl} 
                       className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]" 

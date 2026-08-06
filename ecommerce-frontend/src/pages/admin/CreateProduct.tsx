@@ -144,8 +144,9 @@ export const CreateProduct = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Name */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Product Name <span className="text-destructive">*</span></label>
+                <label htmlFor="name" className="text-sm font-medium">Product Name <span className="text-destructive">*</span></label>
                 <Input 
+                  id="name"
                   {...register('name')} 
                   placeholder="e.g. Wireless Headphones"
                   className={errors.name ? 'border-destructive' : ''}
@@ -156,8 +157,9 @@ export const CreateProduct = () => {
               
               {/* Price */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Price (USD) <span className="text-destructive">*</span></label>
+                <label htmlFor="price" className="text-sm font-medium">Price (USD) <span className="text-destructive">*</span></label>
                 <Input 
+                  id="price"
                   type="number"
                   step="0.01"
                   {...register('price')} 
@@ -171,8 +173,9 @@ export const CreateProduct = () => {
 
             {/* Description */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
+              <label htmlFor="description" className="text-sm font-medium">Description</label>
               <textarea 
+                id="description"
                 {...register('description')} 
                 placeholder="Product description..."
                 className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -184,8 +187,9 @@ export const CreateProduct = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* SKU */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">SKU</label>
+                <label htmlFor="sku" className="text-sm font-medium">SKU</label>
                 <Input 
+                  id="sku"
                   {...register('sku')} 
                   placeholder="e.g. WH-1000XM4"
                   disabled={isSubmitting}
@@ -194,8 +198,9 @@ export const CreateProduct = () => {
               
               {/* Category */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Category</label>
+                <label htmlFor="category" className="text-sm font-medium">Category</label>
                 <Input 
+                  id="category"
                   {...register('category')} 
                   placeholder="e.g. Electronics"
                   disabled={isSubmitting}
@@ -205,7 +210,7 @@ export const CreateProduct = () => {
 
             {/* Image Upload */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Product Image</label>
+              <span className="text-sm font-medium block">Product Image</span>
               
               <div className={`relative border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center transition-colors overflow-hidden ${
                   uploadStatus === 'success' ? 'border-green-500 bg-green-500/5' : 

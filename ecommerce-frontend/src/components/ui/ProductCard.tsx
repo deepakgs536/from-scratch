@@ -54,6 +54,7 @@ export const ProductCard = ({ product, onAddToCart, index = 0 }: { product: Prod
 
         {/* Wishlist Button */}
         <button 
+          type="button"
           onClick={handleWishlistToggle}
           className="absolute top-4 right-4 z-20 h-10 w-10 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 hover:text-red-500 hover:scale-110 transition-all duration-300"
         >

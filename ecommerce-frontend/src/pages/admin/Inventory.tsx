@@ -210,6 +210,7 @@ export const AdminInventory = () => {
       {/* Low Stock & Depleted Collapsible List */}
       <div className="mb-8 bg-amber-50 border border-amber-100 rounded-[1.5rem] overflow-hidden shadow-sm">
         <button
+          type="button"
           onClick={() => setShowLowStock(!showLowStock)}
           className="w-full flex items-center justify-between p-5 bg-amber-100/50 hover:bg-amber-100 transition-colors focus:outline-none"
         >
@@ -360,29 +361,31 @@ export const AdminInventory = () => {
             </CardHeader>
             <CardContent className="space-y-5 pt-6">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground flex justify-between">
+                <label htmlFor="avail-qty" className="text-sm font-semibold text-foreground flex justify-between">
                   <span>Available Quantity</span>
                   <span className="text-muted-foreground font-normal">Ready to ship</span>
                 </label>
                 <input 
+                  id="avail-qty"
                   type="number"
                   min="0"
                   className="flex h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent transition-all"
                   value={editForm.available_quantity}
-                  onChange={e => setEditForm({...editForm, available_quantity: parseInt(e.target.value) || 0})}
+                  onChange={e => setEditForm({...editForm, available_quantity: Number.parseInt(e.target.value) || 0})}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground flex justify-between">
+                <label htmlFor="res-qty" className="text-sm font-semibold text-foreground flex justify-between">
                   <span>Reserved Quantity</span>
                   <span className="text-muted-foreground font-normal">Pending orders</span>
                 </label>
                 <input 
+                  id="res-qty"
                   type="number"
                   min="0"
                   className="flex h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent transition-all"
                   value={editForm.reserved_quantity}
-                  onChange={e => setEditForm({...editForm, reserved_quantity: parseInt(e.target.value) || 0})}
+                  onChange={e => setEditForm({...editForm, reserved_quantity: Number.parseInt(e.target.value) || 0})}
                 />
               </div>
             </CardContent>

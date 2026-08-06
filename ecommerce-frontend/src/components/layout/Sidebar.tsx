@@ -36,8 +36,13 @@ export const Sidebar = () => {
       {/* Mobile Overlay */}
       {isOpenMobile && (
         <div 
+          role="button"
+          tabIndex={0}
           className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden"
           onClick={() => setIsOpenMobile(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') setIsOpenMobile(false);
+          }}
         />
       )}
 

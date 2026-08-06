@@ -168,6 +168,7 @@ export const OrderDetails = () => {
           const isActive = activeTab === tab.id;
           return (
             <button
+              type="button"
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center whitespace-nowrap px-6 py-3 text-sm font-bold transition-colors relative rounded-full ${
@@ -362,8 +363,9 @@ export const OrderDetails = () => {
                 <form onSubmit={handleUpdate} className="space-y-8">
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2 md:col-span-2">
-                      <label className="text-sm font-bold text-slate-700">Street Address</label>
+                      <label htmlFor="street" className="text-sm font-bold text-slate-700">Street Address</label>
                       <Input 
+                        id="street"
                         placeholder="123 Main St" 
                         value={editForm.street}
                         onChange={(e) => setEditForm({...editForm, street: e.target.value})}
@@ -372,8 +374,9 @@ export const OrderDetails = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700">City</label>
+                      <label htmlFor="city" className="text-sm font-bold text-slate-700">City</label>
                       <Input 
+                        id="city"
                         placeholder="City" 
                         value={editForm.city}
                         onChange={(e) => setEditForm({...editForm, city: e.target.value})}
@@ -382,8 +385,9 @@ export const OrderDetails = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700">State / Province</label>
+                      <label htmlFor="state" className="text-sm font-bold text-slate-700">State / Province</label>
                       <Input 
+                        id="state"
                         placeholder="State" 
                         value={editForm.state}
                         onChange={(e) => setEditForm({...editForm, state: e.target.value})}
@@ -392,8 +396,9 @@ export const OrderDetails = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700">Zip / Postal Code</label>
+                      <label htmlFor="zip" className="text-sm font-bold text-slate-700">Zip / Postal Code</label>
                       <Input 
+                        id="zip"
                         placeholder="Zip" 
                         value={editForm.zip}
                         onChange={(e) => setEditForm({...editForm, zip: e.target.value})}
@@ -402,8 +407,9 @@ export const OrderDetails = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700">Contact Number</label>
+                      <label htmlFor="contact" className="text-sm font-bold text-slate-700">Contact Number</label>
                       <Input 
+                        id="contact"
                         placeholder="+1 (555) 000-0000" 
                         value={editForm.contact_number}
                         onChange={(e) => setEditForm({...editForm, contact_number: e.target.value})}
@@ -411,8 +417,9 @@ export const OrderDetails = () => {
                       />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <label className="text-sm font-bold text-slate-700">Delivery Instructions (Optional)</label>
+                      <label htmlFor="instructions" className="text-sm font-bold text-slate-700">Delivery Instructions (Optional)</label>
                       <Input 
+                        id="instructions"
                         placeholder="e.g., Leave at front door" 
                         value={editForm.delivery_instructions}
                         onChange={(e) => setEditForm({...editForm, delivery_instructions: e.target.value})}
@@ -472,7 +479,7 @@ export const OrderDetails = () => {
                            // reconstruct the paymentId based on the pattern in your DynamoDB JSON!
                            // orderId: "2aa77d94-1b03-4473-9b9c-d61658bc559e"
                            // paymentId: "pay_auto_2aa77d941b0344739b9cd61658bc559e"
-                           const paymentId = `pay_auto_${order.orderId.replace(/-/g, '')}`;
+                           const paymentId = `pay_auto_${order.orderId.replaceAll('-', '')}`;
                            console.log("[DEBUG] Reconstructed paymentId:", paymentId);
 
                            // 1. Update Payment Service directly using the reconstructed ID
