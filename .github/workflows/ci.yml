@@ -69,12 +69,19 @@ jobs:
     secrets:
       SNYK_TOKEN: ${{ secrets.SNYK_ACCESS_TOKEN }}
 
+  security-sonarqube:
+    needs: changes
+    uses: ./.github/workflows/reusable-sonarqube.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
   infra-validate:
     needs: changes
     uses: ./.github/workflows/reusable-infra.yml
 
   deploy:
-    needs: [changes, test, security-dependencies, security-sast, infra-validate]
+    needs: [changes, test, security-dependencies, security-sast, security-sonarqube, infra-validate]
     if: ${{ needs.changes.outputs.services != '[]' && needs.changes.outputs.services != '' }}
     strategy:
       matrix:
