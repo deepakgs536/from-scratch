@@ -24,6 +24,48 @@ const getUserIdFromAuth = (event) => {
          null;
 };
 
+const handleGetUser = async (targetUserId) => {
+  const { Item } = await docClient.send(new GetCommand({ 
+    TableName: USERS_TABLE, 
+    Key: { userId: targetUserId } 
+  }));
+  
+  if (!Item) return createResponse(404, { error: 'User not found' });
+  return createResponse(200, { success: true, data: Item });
+};
+
+const handleUpdateUser = async (targetUserId, event) => {
+  let body;
+  try {
+    body = JSON.parse(event.body);
+  } catch (e) {
+    return createResponse(400, { error: 'Invalid JSON body' });
+  }
+
+  // Fetch existing user to perform a partial update
+  const { Item: existingUser } = await docClient.send(new GetCommand({ 
+    TableName: USERS_TABLE, 
+    Key: { userId: targetUserId } 
+  }));
+  
+  if (!existingUser) return createResponse(404, { error: 'User not found' });
+
+  // Build updated user, ignoring restricted fields like email, role, or userId
+  const updatedUser = {
+    ...existingUser,
+    name: body.name ?? existingUser.name,
+    profile_image_url: body.profile_image_url ?? existingUser.profile_image_url,
+    updated_at: new Date().toISOString(),
+  };
+
+  await docClient.send(new PutCommand({ 
+    TableName: USERS_TABLE, 
+    Item: updatedUser 
+  }));
+  
+  return createResponse(200, { success: true, message: 'Profile updated successfully', data: updatedUser });
+};
+
 export const handler = async (event) => {
   try {
     const path = event.path || (event.requestContext && event.requestContext.http && event.requestContext.http.path) || event.rawPath || '';
@@ -55,46 +97,12 @@ export const handler = async (event) => {
 
     // GET /users/:id
     if (method === 'GET') {
-      const { Item } = await docClient.send(new GetCommand({ 
-        TableName: USERS_TABLE, 
-        Key: { userId: targetUserId } 
-      }));
-      
-      if (!Item) return createResponse(404, { error: 'User not found' });
-      return createResponse(200, { success: true, data: Item });
+      return await handleGetUser(targetUserId);
     }
 
     // PUT /users/:id
     if (method === 'PUT') {
-      let body;
-      try {
-        body = JSON.parse(event.body);
-      } catch (e) {
-        return createResponse(400, { error: 'Invalid JSON body' });
-      }
-
-      // Fetch existing user to perform a partial update
-      const { Item: existingUser } = await docClient.send(new GetCommand({ 
-        TableName: USERS_TABLE, 
-        Key: { userId: targetUserId } 
-      }));
-      
-      if (!existingUser) return createResponse(404, { error: 'User not found' });
-
-      // Build updated user, ignoring restricted fields like email, role, or userId
-      const updatedUser = {
-        ...existingUser,
-        name: body.name ?? existingUser.name,
-        profile_image_url: body.profile_image_url ?? existingUser.profile_image_url,
-        updated_at: new Date().toISOString(),
-      };
-
-      await docClient.send(new PutCommand({ 
-        TableName: USERS_TABLE, 
-        Item: updatedUser 
-      }));
-      
-      return createResponse(200, { success: true, message: 'Profile updated successfully', data: updatedUser });
+      return await handleUpdateUser(targetUserId, event);
     }
 
     return createResponse(404, { error: 'Route Not Found' });

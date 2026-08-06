@@ -34,361 +34,214 @@ const getProductId = (event, path) => {
   return match ? match[1] : null;
 };
 
+const handleGetInventoryAll = async () => {
+  try {
+    const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE_NAME }));
+    return createResponse(200, { success: true, count: Items?.length || 0, data: Items || [] });
+  } catch (error) {
+    logger.error("Failed to fetch inventory", { error: error.message });
+    return createResponse(500, { success: false, error: "Failed to fetch inventory" });
+  }
+};
+
+const handleGetInventoryItem = async (event, path) => {
+  const productId = getProductId(event, path);
+  if (!productId) return createResponse(400, { error: 'Product ID missing from path' });
+
+  const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { productId } }));
+  if (!Item) return createResponse(404, { error: 'Inventory record not found' });
+  return createResponse(200, { success: true, data: Item });
+};
+
+const handleAdjustInventory = async (event) => {
+  let body;
+  try { body = parseBody(event); } catch (e) { return createResponse(400, { error: e.message }); }
+
+  const { productId, quantityChange } = body;
+  if (!productId || typeof quantityChange !== 'number') {
+    return createResponse(400, { error: 'Missing or invalid productId or quantityChange (must be a number)' });
+  }
+  
+  const response = await docClient.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: { productId },
+    UpdateExpression: "SET available_quantity = if_not_exists(available_quantity, :start) + :change, reserved_quantity = if_not_exists(reserved_quantity, :start), updated_at = :updatedAt",
+    ExpressionAttributeValues: { ":start": 0, ":change": quantityChange, ":updatedAt": new Date().toISOString() },
+    ReturnValues: "ALL_NEW"
+  }));
+  
+  return createResponse(200, { success: true, data: response.Attributes });
+};
+
+const handleUpdateInventory = async (event, path) => {
+  const productId = getProductId(event, path);
+  if (!productId) return createResponse(400, { success: false, error: "Product ID missing from path" });
+
+  let body;
+  try { body = parseBody(event); } catch (err) { return createResponse(400, { success: false, error: err.message }); }
+
+  const { available_quantity, reserved_quantity } = body;
+  if (available_quantity === undefined && reserved_quantity === undefined) {
+    return createResponse(400, { success: false, error: "At least one of available_quantity or reserved_quantity must be provided" });
+  }
+
+  const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { productId } }));
+  if (!Item) return createResponse(404, { success: false, error: "Inventory record not found" });
+
+  const updatedInventory = {
+    ...Item,
+    available_quantity: available_quantity ?? Item.available_quantity,
+    reserved_quantity: reserved_quantity ?? Item.reserved_quantity,
+    updated_at: new Date().toISOString(),
+  };
+
+  await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: updatedInventory }));
+
+  if(TOPIC_ARN) await publishEvent(TOPIC_ARN, "InventoryUpdated", updatedInventory);
+
+  return createResponse(200, { success: true, message: "Inventory updated successfully", data: updatedInventory });
+};
+
 const handleApiGatewayEvent = async (event) => {
   const path = event.path || (event.requestContext && event.requestContext.http && event.requestContext.http.path) || event.rawPath || '';
   const method = event.httpMethod || (event.requestContext && event.requestContext.http && event.requestContext.http.method) || '';
 
   if (method === 'OPTIONS') return createResponse(200, { success: true });
 
-  // GET /inventory
-  if (path.endsWith("/inventory") && method === "GET") {
-    try {
-      const { Items } = await docClient.send(
-        new ScanCommand({
-          TableName: TABLE_NAME,
-        })
-      );
-
-      return createResponse(200, {
-        success: true,
-        count: Items?.length || 0,
-        data: Items || [],
-      });
-    } catch (error) {
-      logger.error("Failed to fetch inventory", {
-        error: error.message,
-      });
-
-      return createResponse(500, {
-        success: false,
-        error: "Failed to fetch inventory",
-      });
-    }
-  }
-
-  // GET /inventory/:productId
-  if (path.includes('/inventory/') && !path.endsWith('/adjust') && method === 'GET') {
-    const productId = getProductId(event, path);
-    if (!productId) return createResponse(400, { error: 'Product ID missing from path' });
-
-    const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { productId } }));
-    if (!Item) return createResponse(404, { error: 'Inventory record not found' });
-    return createResponse(200, { success: true, data: Item });
-  }
-
-  // POST /inventory/adjust
-  if (path.endsWith('/inventory/adjust') && method === 'POST') {
-    let body;
-    try {
-      body = parseBody(event);
-    } catch (e) {
-      return createResponse(400, { error: e.message });
-    }
-
-    const { productId, quantityChange } = body;
-    
-    if (!productId || typeof quantityChange !== 'number') {
-      return createResponse(400, { error: 'Missing or invalid productId or quantityChange (must be a number)' });
-    }
-    
-    const response = await docClient.send(new UpdateCommand({
-      TableName: TABLE_NAME,
-      Key: { productId },
-      UpdateExpression: "SET available_quantity = if_not_exists(available_quantity, :start) + :change, reserved_quantity = if_not_exists(reserved_quantity, :start), updated_at = :updatedAt",
-      ExpressionAttributeValues: {
-        ":start": 0,
-        ":change": quantityChange,
-        ":updatedAt": new Date().toISOString()
-      },
-      ReturnValues: "ALL_NEW"
-    }));
-    
-    return createResponse(200, { success: true, data: response.Attributes });
-  }
-
-  // PUT /inventory/:productId
-  if (path.includes("/inventory/") && method === "PUT") {
-    const productId = getProductId(event, path);
-
-    if (!productId) {
-      return createResponse(400, {
-        success: false,
-        error: "Product ID missing from path",
-      });
-    }
-
-    let body;
-
-    try {
-      body = parseBody(event);
-    } catch (err) {
-      return createResponse(400, {
-        success: false,
-        error: err.message,
-      });
-    }
-
-    const {
-      available_quantity,
-      reserved_quantity,
-    } = body;
-
-    if (
-      available_quantity === undefined &&
-      reserved_quantity === undefined
-    ) {
-      return createResponse(400, {
-        success: false,
-        error:
-          "At least one of available_quantity or reserved_quantity must be provided",
-      });
-    }
-
-    // Get existing inventory
-    const { Item } = await docClient.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          productId,
-        },
-      })
-    );
-
-    if (!Item) {
-      return createResponse(404, {
-        success: false,
-        error: "Inventory record not found",
-      });
-    }
-
-    const updatedInventory = {
-      ...Item,
-      available_quantity:
-        available_quantity ?? Item.available_quantity,
-      reserved_quantity:
-        reserved_quantity ?? Item.reserved_quantity,
-      updated_at: new Date().toISOString(),
-    };
-
-    await docClient.send(
-      new PutCommand({
-        TableName: TABLE_NAME,
-        Item: updatedInventory,
-      })
-    );
-
-    if(TOPIC_ARN) await publishEvent(
-      TOPIC_ARN,
-      "InventoryUpdated",
-      updatedInventory
-    );
-
-    return createResponse(200, {
-      success: true,
-      message: "Inventory updated successfully",
-      data: updatedInventory,
-    });
-  }
+  if (path.endsWith("/inventory") && method === "GET") return await handleGetInventoryAll();
+  if (path.includes('/inventory/') && !path.endsWith('/adjust') && method === 'GET') return await handleGetInventoryItem(event, path);
+  if (path.endsWith('/inventory/adjust') && method === 'POST') return await handleAdjustInventory(event);
+  if (path.includes("/inventory/") && method === "PUT") return await handleUpdateInventory(event, path);
 
   return createResponse(404, { error: 'Not Found' });
+};
+
+const processOrderCreated = async (payload) => {
+  const { orderId, items } = payload;
+  logger.info(`Processing OrderCreated for orderId: ${orderId}`);
+  
+  if (!items || !Array.isArray(items)) {
+    logger.warn(`OrderCreated event missing valid items array for orderId: ${orderId}`);
+    return;
+  }
+
+  for (const item of items) {
+    if (!item.productId || typeof item.quantity !== 'number') {
+      logger.warn(`Invalid item in OrderCreated payload`, { item });
+      continue;
+    }
+
+    try {
+      await docClient.send(new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: { productId: item.productId },
+        UpdateExpression: "SET reserved_quantity = if_not_exists(reserved_quantity, :zero) + :qty, available_quantity = available_quantity - :qty, updated_at = :now",
+        ConditionExpression: "available_quantity >= :qty",
+        ExpressionAttributeValues: { ":zero": 0, ":qty": item.quantity, ":now": new Date().toISOString() }
+      }));
+      
+      logger.info(`Reserved inventory for productId: ${item.productId}`);
+      if(TOPIC_ARN) await publishEvent(TOPIC_ARN, 'InventoryReserved', { orderId, productId: item.productId });
+      
+    } catch (error) {
+      if (error.name === 'ConditionalCheckFailedException') {
+        logger.warn(`Insufficient stock for productId: ${item.productId}`);
+        if(TOPIC_ARN) await publishEvent(TOPIC_ARN, 'InventoryReservationFailed', { orderId, productId: item.productId, reason: 'Insufficient Stock' });
+      } else {
+        logger.error(`Error reserving stock for productId: ${item.productId}`, { error: error.message });
+        throw error;
+      }
+    }
+  }
+};
+
+const processProductCreated = async (payload) => {
+  logger.info(`Creating inventory for ${payload.productId}`);
+  await docClient.send(new PutCommand({
+    TableName: TABLE_NAME,
+    Item: {
+      productId: payload.productId,
+      available_quantity: 10,
+      reserved_quantity: 0,
+      updated_at: new Date().toISOString()
+    }
+  }));
+  logger.info(`Inventory created for ${payload.productId}`);
+};
+
+const processProductDeleted = async (payload) => {
+  const { productId } = payload;
+  if (!productId) {
+    logger.warn("ProductDeleted event missing productId");
+    return;
+  }
+
+  logger.info(`Processing ProductDeleted for productId: ${productId}`);
+  try {
+    const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { productId } }));
+    if (!Item) {
+      logger.warn(`Inventory not found for productId: ${productId}`);
+      return;
+    }
+
+    await docClient.send(new DeleteCommand({ TableName: TABLE_NAME, Key: { productId } }));
+    logger.info(`Inventory deleted for productId: ${productId}`);
+  } catch (error) {
+    logger.error(`Failed to delete inventory for productId: ${productId}`, { error: error.message });
+    throw error;
+  }
+};
+
+const processPaymentSucceeded = async (payload) => {
+  const { orderId } = payload;
+  logger.info(`Processing PaymentSucceeded for ${orderId}`);
+  if (!orderId) {
+    logger.warn("PaymentSucceeded missing orderId");
+    return;
+  }
+
+  try {
+    const orderRes = await fetch(`${process.env.ORDER_SERVICE_URL}/orders/${orderId}`);
+    if (!orderRes.ok) throw new Error(`Failed to fetch order ${orderId}`);
+    
+    const orderData = await orderRes.json();
+    const order = orderData.data;
+
+    if (!order || !Array.isArray(order.items)) {
+      logger.warn(`Order ${orderId} has no items`);
+      return;
+    }
+
+    for (const item of order.items) {
+      await docClient.send(new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: { productId: item.productId },
+        UpdateExpression: "SET reserved_quantity = reserved_quantity - :qty, updated_at = :now",
+        ConditionExpression: "reserved_quantity >= :qty",
+        ExpressionAttributeValues: { ":qty": item.quantity, ":now": new Date().toISOString() }
+      }));
+      logger.info(`Finalized stock for ${item.productId}`);
+    }
+  } catch (err) {
+    logger.error(`Failed processing PaymentSucceeded for ${orderId}`, { error: err.message });
+    throw err;
+  }
 };
 
 const handleSqsEvent = async (event) => {
   for (const record of event.Records) {
     const sqsMessage = typeof record.body === 'string' ? JSON.parse(record.body) : record.body;
-    // SQS messages sent via SNS contain a "Message" string property which is the actual JSON payload
     const payloadWrapper = (sqsMessage.Message && typeof sqsMessage.Message === 'string') 
-      ? JSON.parse(sqsMessage.Message) 
-      : sqsMessage;
+      ? JSON.parse(sqsMessage.Message) : sqsMessage;
     
     const { eventType, payload } = payloadWrapper;
-
-    logger.info("Parsed event", {
-      eventType,
-      payload
-    });
+    logger.info("Parsed event", { eventType, payload });
     
-    if (eventType === 'OrderCreated') {
-      const { orderId, items } = payload;
-      logger.info(`Processing OrderCreated for orderId: ${orderId}`);
-      
-      if (!items || !Array.isArray(items)) {
-        logger.warn(`OrderCreated event missing valid items array for orderId: ${orderId}`);
-        continue; // Skip invalid events rather than crashing the batch
-      }
-
-      for (const item of items) {
-        if (!item.productId || typeof item.quantity !== 'number') {
-          logger.warn(`Invalid item in OrderCreated payload`, { item });
-          continue;
-        }
-
-        try {
-          await docClient.send(new UpdateCommand({
-            TableName: TABLE_NAME,
-            Key: { productId: item.productId },
-            UpdateExpression: "SET reserved_quantity = if_not_exists(reserved_quantity, :zero) + :qty, available_quantity = available_quantity - :qty, updated_at = :now",
-            ConditionExpression: "available_quantity >= :qty",
-            ExpressionAttributeValues: {
-              ":zero": 0,
-              ":qty": item.quantity,
-              ":now": new Date().toISOString()
-            }
-          }));
-          
-          logger.info(`Reserved inventory for productId: ${item.productId}`);
-          if(TOPIC_ARN) await publishEvent(TOPIC_ARN, 'InventoryReserved', { orderId, productId: item.productId });
-          
-        } catch (error) {
-          if (error.name === 'ConditionalCheckFailedException') {
-            logger.warn(`Insufficient stock for productId: ${item.productId}`);
-            if(TOPIC_ARN) await publishEvent(TOPIC_ARN, 'InventoryReservationFailed', { orderId, productId: item.productId, reason: 'Insufficient Stock' });
-          } else {
-            logger.error(`Error reserving stock for productId: ${item.productId}`, { error: error.message });
-            throw error; // Let the Lambda fail so SQS retries or DLQs this batch
-          }
-        }
-      }
-    }
-
-    if (eventType === 'ProductCreated') {
-      logger.info(`Creating inventory for ${payload.productId}`);
-    
-      await docClient.send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: {
-          productId: payload.productId,
-          available_quantity: 10,
-          reserved_quantity: 0,
-          updated_at: new Date().toISOString()
-        }
-      }));
-    
-      logger.info(`Inventory created for ${payload.productId}`);
-    }
-
-    if (eventType === "ProductDeleted") {
-      const { productId } = payload;
-
-      if (!productId) {
-        logger.warn("ProductDeleted event missing productId");
-        continue;
-      }
-
-      logger.info(`Processing ProductDeleted for productId: ${productId}`);
-
-      try {
-        // Check if inventory exists
-        const { Item } = await docClient.send(
-          new GetCommand({
-            TableName: TABLE_NAME,
-            Key: {
-              productId,
-            },
-          })
-        );
-
-        if (!Item) {
-          logger.warn(`Inventory not found for productId: ${productId}`);
-          continue;
-        }
-
-        // Delete inventory
-        await docClient.send(
-          new DeleteCommand({
-            TableName: TABLE_NAME,
-            Key: {
-              productId,
-            },
-          })
-        );
-
-        logger.info(`Inventory deleted for productId: ${productId}`);
-
-      } catch (error) {
-        logger.error(`Failed to delete inventory for productId: ${productId}`, {
-          error: error.message,
-        });
-
-        throw error; // SQS will retry the message
-      }
-    }
-
-    if (eventType === "PaymentSucceeded") {
-
-      const { orderId } = payload;
-    
-      logger.info(`Processing PaymentSucceeded for ${orderId}`);
-    
-      if (!orderId) {
-        logger.warn("PaymentSucceeded missing orderId");
-        continue;
-      }
-    
-      try {
-    
-        const orderRes = await fetch(
-          `${process.env.ORDER_SERVICE_URL}/orders/${orderId}`
-        );
-    
-        if (!orderRes.ok) {
-          throw new Error(
-            `Failed to fetch order ${orderId}`
-          );
-        }
-    
-        const orderData = await orderRes.json();
-    
-        const order = orderData.data;
-    
-        if (!order || !Array.isArray(order.items)) {
-          logger.warn(`Order ${orderId} has no items`);
-          continue;
-        }
-    
-        for (const item of order.items) {
-    
-          await docClient.send(
-            new UpdateCommand({
-              TableName: TABLE_NAME,
-              Key: {
-                productId: item.productId
-              },
-    
-              UpdateExpression: `
-                SET
-                  reserved_quantity = reserved_quantity - :qty,
-                  updated_at = :now
-              `,
-    
-              ConditionExpression:
-                "reserved_quantity >= :qty",
-    
-              ExpressionAttributeValues: {
-                ":qty": item.quantity,
-                ":now": new Date().toISOString()
-              }
-            })
-          );
-    
-          logger.info(
-            `Finalized stock for ${item.productId}`
-          );
-        }
-    
-      } catch (err) {
-    
-        logger.error(
-          `Failed processing PaymentSucceeded for ${orderId}`,
-          {
-            error: err.message
-          }
-        );
-    
-        throw err;
-      }
-    }
-    }
+    if (eventType === 'OrderCreated') await processOrderCreated(payload);
+    if (eventType === 'ProductCreated') await processProductCreated(payload);
+    if (eventType === "ProductDeleted") await processProductDeleted(payload);
+    if (eventType === "PaymentSucceeded") await processPaymentSucceeded(payload);
+  }
 };
 
 export const handler = async (event, context) => {

@@ -78,214 +78,117 @@ export const handler = async (event, context) => {
   try {
     if (!event) return createResponse(400, { error: 'Empty event' });
 
-    const path = event.path || (event.requestContext && event.requestContext.http && event.requestContext.http.path) || event.rawPath || '';
-    const method = event.httpMethod || (event.requestContext && event.requestContext.http && event.requestContext.http.method) || '';
+const handleGetProducts = async (event) => {
+  const category = event.queryStringParameters?.category;
+  if (category) {
+    const { Items } = await docClient.send(new QueryCommand({
+      TableName: TABLE_NAME,
+      IndexName: "CategoryIndex",
+      KeyConditionExpression: "#category = :category",
+      ExpressionAttributeNames: { "#category": "category" },
+      ExpressionAttributeValues: { ":category": decodeURIComponent(category) },
+    }));
+    return createResponse(200, { success: true, data: Items });
+  }
 
-    // Handle Preflight CORS
-    if (method === 'OPTIONS') {
-      return createResponse(200, { success: true });
-    }
+  const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE_NAME }));
+  return createResponse(200, { success: true, data: Items });
+};
 
-    // GET /products
-    if (path.endsWith('/products') && method === 'GET') {
+const handleGetProduct = async (event, path) => {
+  const id = getProductId(event, path);
+  if (!id) return createResponse(400, { error: 'Product ID missing from path' });
 
-      const category = event.queryStringParameters?.category;
+  const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { productId: id } }));
+  if (!Item) return createResponse(404, { error: 'Product not found' });
+  return createResponse(200, { success: true, data: Item });
+};
 
-      // Filter by category
-      if (category) {
-        const { Items } = await docClient.send(
-          new QueryCommand({
-            TableName: TABLE_NAME,
-            IndexName: "CategoryIndex",
-            KeyConditionExpression: "#category = :category",
-            ExpressionAttributeNames: {
-              "#category": "category",
-            },
-            ExpressionAttributeValues: {
-              ":category": decodeURIComponent(category),
-            },
-          })
-        );
+const handleCreateProduct = async (event) => {
+  if (!isAdmin(event)) return createResponse(403, { error: 'Forbidden: Admin access required' });
 
-        return createResponse(200, {
-          success: true,
-          data: Items,
-        });
-      }
+  let body;
+  try { body = parseBody(event); } catch (e) { return createResponse(400, { error: e.message }); }
+  if (!body.name || !body.price) return createResponse(400, { error: 'Missing required fields: name, price' });
 
-      const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE_NAME }));
-      return createResponse(200, { success: true, data: Items });
-    }
+  const product = {
+    productId: uuidv4(),
+    name: body.name,
+    description: body.description || '',
+    price: Number(body.price),
+    sku: body.sku || '',
+    category: body.category || '',
+    image_url: body.image_url || '',
+    stock_status: 'IN_STOCK',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  
+  await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: product }));
+  await publishEvent(TOPIC_ARN, 'ProductCreated', product);
+  
+  return createResponse(201, { success: true, data: product });
+};
 
-    // GET /products/:id
-    if (path.includes('/products/') && method === 'GET') {
-      const id = getProductId(event, path);
-      if (!id) return createResponse(400, { error: 'Product ID missing from path' });
+const handleUpdateProduct = async (event, path) => {
+  if (!isAdmin(event)) return createResponse(403, { error: 'Forbidden: Admin access required' });
 
-      const { Item } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { productId: id } }));
-      if (!Item) return createResponse(404, { error: 'Product not found' });
-      return createResponse(200, { success: true, data: Item });
-    }
+  let body;
+  try { body = parseBody(event); } catch (err) { return createResponse(400, { success: false, error: err.message }); }
 
-    // POST /products
-    if (path.endsWith('/products') && method === 'POST') {
+  const productId = getProductId(event, path);
+  if (!productId) return createResponse(400, { success: false, error: "Product ID missing from path" });
 
-      if (!isAdmin(event)) {
-        return createResponse(403, { error: 'Forbidden: Admin access required to delete products' });
-      }
+  const updatableFields = ["name", "description", "price", "sku", "category", "image_url", "stock_status"];
+  const hasUpdates = updatableFields.some((field) => body[field] !== undefined);
+  if (!hasUpdates) return createResponse(400, { success: false, error: "No fields provided to update" });
 
-      let body;
-      try {
-        body = parseBody(event);
-      } catch (e) {
-        return createResponse(400, { error: e.message });
-      }
+  const { Item: existingProduct } = await docClient.send(new GetCommand({ TableName: TABLE_NAME, Key: { productId } }));
+  if (!existingProduct) return createResponse(404, { success: false, error: "Product not found" });
 
-      if (!body.name || !body.price) {
-        return createResponse(400, { error: 'Missing required fields: name, price' });
-      }
+  const updatedProduct = {
+    ...existingProduct,
+    name: body.name ?? existingProduct.name,
+    description: body.description ?? existingProduct.description,
+    price: body.price !== undefined ? Number(body.price) : existingProduct.price,
+    sku: body.sku ?? existingProduct.sku,
+    category: body.category ?? existingProduct.category,
+    image_url: body.image_url ?? existingProduct.image_url,
+    stock_status: body.stock_status ?? existingProduct.stock_status,
+    updated_at: new Date().toISOString(),
+  };
 
-      const product = {
-        productId: uuidv4(),
-        name: body.name,
-        description: body.description || '',
-        price: Number(body.price),
-        sku: body.sku || '',
-        category: body.category || '',
-        image_url: body.image_url || '',
-        stock_status: 'IN_STOCK',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: product }));
-      await publishEvent(TOPIC_ARN, 'ProductCreated', product);
-      
-      return createResponse(201, { success: true, data: product });
-    }
+  await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: updatedProduct }));
+  await publishEvent(TOPIC_ARN, "ProductUpdated", updatedProduct);
 
-    // PUT /products/:id
-    if (path.includes("/products/") && method === "PUT") {
+  return createResponse(200, { success: true, message: "Product updated successfully", data: updatedProduct });
+};
 
-      if (!isAdmin(event)) {
-        return createResponse(403, { error: 'Forbidden: Admin access required to delete products' });
-      }
+const handleDeleteProduct = async (event, path) => {
+  if (!isAdmin(event)) return createResponse(403, { error: 'Forbidden: Admin access required' });
 
-      let body;
+  const id = getProductId(event, path);
+  if (!id) return createResponse(400, { error: 'Product ID missing from path' });
 
-      try {
-        body = parseBody(event);
-      } catch (err) {
-        return createResponse(400, {
-          success: false,
-          error: err.message,
-        });
-      }
+  await docClient.send(new DeleteCommand({ TableName: TABLE_NAME, Key: { productId: id } }));
+  await publishEvent(TOPIC_ARN, 'ProductDeleted', { productId: id });
+  return createResponse(200, { success: true, message: 'Product deleted' });
+};
 
-      // Get productId from path
-      const productId = getProductId(event, path);
+const handleApiGatewayEvent = async (event) => {
+  const path = event.path || (event.requestContext && event.requestContext.http && event.requestContext.http.path) || event.rawPath || '';
+  const method = event.httpMethod || (event.requestContext && event.requestContext.http && event.requestContext.http.method) || '';
 
-      if (!productId) {
-        return createResponse(400, {
-          success: false,
-          error: "Product ID missing from path",
-        });
-      }
+  if (method === 'OPTIONS') return createResponse(200, { success: true });
 
-      // Check if at least one field is being updated
-      const updatableFields = [
-        "name",
-        "description",
-        "price",
-        "sku",
-        "category",
-        "image_url",
-        "stock_status",
-      ];
+  if (path.endsWith('/products') && method === 'GET') return await handleGetProducts(event);
+  if (path.includes('/products/') && method === 'GET') return await handleGetProduct(event, path);
+  if (path.endsWith('/products') && method === 'POST') return await handleCreateProduct(event);
+  if (path.includes("/products/") && method === "PUT") return await handleUpdateProduct(event, path);
+  if (path.includes('/products/') && method === 'DELETE') return await handleDeleteProduct(event, path);
 
-      const hasUpdates = updatableFields.some(
-        (field) => body[field] !== undefined
-      );
-
-      if (!hasUpdates) {
-        return createResponse(400, {
-          success: false,
-          error: "No fields provided to update",
-        });
-      }
-
-      // Fetch existing product
-      const { Item: existingProduct } = await docClient.send(
-        new GetCommand({
-          TableName: TABLE_NAME,
-          Key: {
-            productId,
-          },
-        })
-      );
-
-      if (!existingProduct) {
-        return createResponse(404, {
-          success: false,
-          error: "Product not found",
-        });
-      }
-
-      // Build updated product
-      const updatedProduct = {
-        ...existingProduct,
-        name: body.name ?? existingProduct.name,
-        description: body.description ?? existingProduct.description,
-        price:
-          body.price !== undefined
-            ? Number(body.price)
-            : existingProduct.price,
-        sku: body.sku ?? existingProduct.sku,
-        category: body.category ?? existingProduct.category,
-        image_url: body.image_url ?? existingProduct.image_url,
-        stock_status:
-          body.stock_status ?? existingProduct.stock_status,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Save updated product
-      await docClient.send(
-        new PutCommand({
-          TableName: TABLE_NAME,
-          Item: updatedProduct,
-        })
-      );
-
-      // Publish ProductUpdated event
-      await publishEvent(
-        TOPIC_ARN, 
-        "ProductUpdated",
-        updatedProduct
-      );
-
-      return createResponse(200, {
-        success: true,
-        message: "Product updated successfully",
-        data: updatedProduct,
-      });
-    }
-    
-    // DELETE /products/:id
-    if (path.includes('/products/') && method === 'DELETE') {
-
-      if (!isAdmin(event)) {
-        return createResponse(403, { error: 'Forbidden: Admin access required to delete products' });
-      }
-
-      const id = getProductId(event, path);
-      if (!id) return createResponse(400, { error: 'Product ID missing from path' });
-
-      await docClient.send(new DeleteCommand({ TableName: TABLE_NAME, Key: { productId: id } }));
-      await publishEvent(TOPIC_ARN, 'ProductDeleted', { productId: id });
-      return createResponse(200, { success: true, message: 'Product deleted' });
-    }
-
-    return createResponse(404, { error: 'Not Found' });
+  return createResponse(404, { error: 'Not Found' });
+};
 
   } catch (error) {
     logger.error('Lambda Error', { error: error.message, stack: error.stack });

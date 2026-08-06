@@ -22,6 +22,40 @@ axiosClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+const handleRetry = async (originalRequest: any) => {
+  originalRequest._retry = true;
+  try {
+    return await axiosClient(originalRequest);
+  } catch (retryError) {
+    const suppressError = originalRequest.suppressError === true;
+    if (!suppressError) {
+      toast.error('Network Error: Please check your connection.');
+    }
+    throw retryError;
+  }
+};
+
+const handleErrorResponse = (error: any, originalRequest: any) => {
+  const { status, data } = error.response;
+  const message = data?.error || data?.message || 'An error occurred';
+  const suppressError = originalRequest.suppressError === true;
+
+  if (!suppressError) {
+    if (status === 401) {
+      toast.error('Session expired. Please login again.');
+      localStorage.removeItem('token');
+      // In a real app, redirect to login or dispatch logout action
+      window.location.href = '/login';
+    } else if (status === 403) {
+      toast.error('You do not have permission to perform this action.');
+    } else if (status >= 500) {
+      toast.error('Server error. Please try again later.');
+    } else {
+      toast.error(message);
+    }
+  }
+};
+
 // Response Interceptor: Error parsing, retry, toasts, 401/403
 axiosClient.interceptors.response.use(
   (response) => response,
@@ -30,39 +64,13 @@ axiosClient.interceptors.response.use(
 
     // Handle Network Errors / Retry logic (1 retry)
     if (!error.response && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        return await axiosClient(originalRequest);
-      } catch (retryError) {
-        const suppressError = (originalRequest as any).suppressError === true;
-        if (!suppressError) {
-          toast.error('Network Error: Please check your connection.');
-        }
-        return Promise.reject(retryError);
-      }
+      return handleRetry(originalRequest);
     }
 
     if (error.response) {
-      const { status, data } = error.response;
-      const message = data?.error || data?.message || 'An error occurred';
-      const suppressError = (originalRequest as any).suppressError === true;
-
-      if (!suppressError) {
-        if (status === 401) {
-          toast.error('Session expired. Please login again.');
-          localStorage.removeItem('token');
-          // In a real app, redirect to login or dispatch logout action
-          window.location.href = '/login';
-        } else if (status === 403) {
-          toast.error('You do not have permission to perform this action.');
-        } else if (status >= 500) {
-          toast.error('Server error. Please try again later.');
-        } else {
-          toast.error(message);
-        }
-      }
+      handleErrorResponse(error, originalRequest);
     }
 
-    return Promise.reject(error);
+    throw error;
   }
 );

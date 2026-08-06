@@ -61,7 +61,7 @@ const CartItemCard = ({ item }: { item: any }) => {
         <Link to={`/products/${item.productId}`}>
           <h3 className="font-semibold hover:underline">{item.name}</h3>
         </Link>
-        <p className="text-sm text-muted-foreground mb-4 sm:mb-0">${item.price.toFixed(2)}</p>
+        <p className="text-sm text-muted-foreground mb-4 sm:mb-0">${(Number(item.price) || 0).toFixed(2)}</p>
       </div>
       
       <div className="flex items-center gap-4">
@@ -85,7 +85,7 @@ const CartItemCard = ({ item }: { item: any }) => {
           </Button>
         </div>
         <div className="w-20 text-right font-semibold">
-          ${(item.price * item.quantity).toFixed(2)}
+          ${((Number(item.price) || 0) * (Number(item.quantity) || 1)).toFixed(2)}
         </div>
         <Button 
           variant="ghost" 

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { execPath } from 'process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,10 +31,14 @@ for (const service of services) {
   
   const secureEnv = { ...process.env };
   
+  const npmPath = process.platform === 'win32'
+    ? path.join(path.dirname(execPath), 'npm.cmd')
+    : path.join(path.dirname(execPath), 'npm');
+  
   console.log(`📦 Packaging ${service}...`);
   try {
     console.log('   Installing production dependencies...');
-    execSync('npm ci --omit=dev --ignore-scripts', { cwd: servicePath, stdio: 'ignore', env: secureEnv });
+    execSync(`"${npmPath}" ci --omit=dev --ignore-scripts`, { cwd: servicePath, stdio: 'ignore', env: secureEnv });
 
     console.log(`   Creating zip archive...`);
     if (fs.existsSync(zipPath)) {
