@@ -16,7 +16,7 @@ jobs:
       frontend: ${{ steps.filter-frontend.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@15192bc058cc28a13dbf6cde61f19e18988b7af6
         id: filter-backend
         with:
           filters: |
@@ -40,7 +40,7 @@ jobs:
               - 'analytics-service/**'
             notification:
               - 'notification-service/**'
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@15192bc058cc28a13dbf6cde61f19e18988b7af6
         id: filter-frontend
         with:
           filters: |
@@ -113,7 +113,7 @@ jobs:
         working-directory: ecommerce-frontend
         run: npm run build
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
