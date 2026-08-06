@@ -208,3 +208,4 @@ export const handler = async (event, context) => {
     if (event?.Records) throw error; 
   }
 };
+ 

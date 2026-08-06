@@ -263,4 +263,4 @@ export const handler = async (event, context) => {
     if (event.Records) throw error; 
     return createResponse(500, { error: 'Internal Server Error' });
   }
-};
+}; 

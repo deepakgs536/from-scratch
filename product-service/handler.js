@@ -195,3 +195,4 @@ export const handler = async (event, context) => {
     return createResponse(500, { error: 'Internal Server Error' });
   }
 };
+ 

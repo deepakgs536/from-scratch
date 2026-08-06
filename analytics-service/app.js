@@ -19,3 +19,4 @@ export const handler = async (event, context) => {
   logger.warn("Universal Handler: Unknown event source", { event });
   return { statusCode: 400, body: JSON.stringify({ error: "Unknown event source" }) };
 };
+ 
