@@ -1,4 +1,4 @@
-import { GetCommand, PutCommand, DeleteCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+﻿import { GetCommand, PutCommand, DeleteCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from './src/dynamodb.js';
 import { logger } from './src/logger.js';
 
@@ -291,5 +291,3 @@ export const handler = async (event, context) => {
     });
   }
 };
-/ /   T r i g g e r   C I  
- 
