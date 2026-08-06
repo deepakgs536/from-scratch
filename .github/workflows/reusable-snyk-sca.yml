@@ -13,9 +13,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Snyk and jq
+      - name: Run Snyk SCA
         run: |
-          npm install -g snyk
+          npm install -g snyk@1.1306.2 --ignore-scripts
           sudo apt-get install -y jq
 
       - name: Run Snyk Security Score Check
