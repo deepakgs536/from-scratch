@@ -199,11 +199,11 @@ export const OrderDetails = () => {
           <CardContent className="space-y-4 p-6">
             <div className="flex justify-between text-sm font-medium">
               <span className="text-slate-500">Subtotal</span>
-              <span className="text-slate-900">${order.total_amount?.toFixed(2)}</span>
+              <span className="text-slate-900">${((order.total_amount - 15)/ 1.08)?.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm font-medium">
               <span className="text-slate-500">Tax(8%)</span>
-              <span className="text-green-600 font-bold">$20</span>
+              <span className="text-green-600 font-bold">${(((order.total_amount - 15)/ 1.08) * 0.08)?.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm font-medium">
               <span className="text-slate-500">Shipping</span>
