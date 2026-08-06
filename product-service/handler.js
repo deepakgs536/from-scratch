@@ -72,12 +72,6 @@ const isAdmin = (event) => {
   return false;
 };
 
-export const handler = async (event, context) => {
-  logger.info("Received event", { event });
-
-  try {
-    if (!event) return createResponse(400, { error: 'Empty event' });
-
 const handleGetProducts = async (event) => {
   const category = event.queryStringParameters?.category;
   if (category) {
@@ -190,6 +184,12 @@ const handleApiGatewayEvent = async (event) => {
   return createResponse(404, { error: 'Not Found' });
 };
 
+export const handler = async (event, context) => {
+  logger.info("Received event", { event });
+
+  try {
+    if (!event) return createResponse(400, { error: 'Empty event' });
+    return await handleApiGatewayEvent(event);
   } catch (error) {
     logger.error('Lambda Error', { error: error.message, stack: error.stack });
     return createResponse(500, { error: 'Internal Server Error' });

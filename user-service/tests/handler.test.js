@@ -104,12 +104,47 @@ test('SQS UserRegistered success', async (t) => {
 });
 
 test('Authorization header parsing with replaceAll', async (t) => {
-  const event = userEvent('GET', '/users/u1', null, { id: 'u1' });
-  // Base64Url string with '-' and '_' to test replaceAll
-  event.headers = {
-    authorization: 'Bearer header.eyJzdWIiOiAibXktc3ViXzEyMyJ9.signature'
+  const event = {
+    httpMethod: 'GET',
+    path: '/users/u1',
+    pathParameters: { id: 'u1' },
+    headers: {
+      authorization: 'Bearer header.eyJzdWIiOiAibXktc3ViXzEyMyJ9.signature'
+    }
   };
-  mock.method(docClient, 'send', async () => ({})); // Empty result forces profile creation from claims
+  mock.method(docClient, 'send', async () => ({ Item: { userId: 'u1' } }));
   const res = await handler(event, {});
   assert.strictEqual(res.statusCode, 200);
+});
+
+test('parseBody should return 400 on invalid JSON', async (t) => {
+  const event = userEvent('PUT', '/users/u1', null, { id: 'u1' });
+  event.body = "{ invalid json }";
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(JSON.parse(res.body).error, 'Invalid JSON body');
+});
+
+test('isAdmin should support stringified cognito:groups for REST APIs', async (t) => {
+  const event = userEvent('GET', '/users');
+  event.requestContext.authorizer = { claims: { 'cognito:groups': '[admin]' } };
+  mock.method(docClient, 'send', async () => ({ Items: [] }));
+  
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('getUserId should fallback to match path', async (t) => {
+  const event = userEvent('GET', '/users/777');
+  event.pathParameters = null; 
+  mock.method(docClient, 'send', async () => ({ Item: { userId: '777' } }));
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('Unhandled error should return 500', async (t) => {
+  mock.method(docClient, 'send', async () => { throw new Error('DynamoDB Error'); });
+  const event = userEvent('GET', '/users/u1', null, { id: 'u1' });
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 500);
 });

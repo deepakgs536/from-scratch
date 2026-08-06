@@ -140,3 +140,26 @@ test('SQS PaymentFailed success', async (t) => {
   const res = await handler(event, {});
   assert.strictEqual(res.success, true);
 });
+
+test('parseBody should return 400 on invalid JSON', async (t) => {
+  const event = userEvent('POST', '/orders', null, { userId: 'u1' });
+  event.body = "{ invalid json }";
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(JSON.parse(res.body).error, 'Invalid JSON body');
+});
+
+test('getOrderId should fallback to match path', async (t) => {
+  const event = userEvent('GET', '/orders/u1/o777', null, { userId: 'u1' });
+  event.pathParameters.orderId = null;
+  mock.method(docClient, 'send', async () => ({ Item: { orderId: 'o777' } }));
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('Unhandled error should return 500', async (t) => {
+  mock.method(docClient, 'send', async () => { throw new Error('DynamoDB Error'); });
+  const event = userEvent('GET', '/orders/u1', null, { userId: 'u1' });
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 500);
+});

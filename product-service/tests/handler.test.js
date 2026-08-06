@@ -211,3 +211,41 @@ test('Unhandled error should return 500', async (t) => {
   const res = await handler(event, {});
   assert.strictEqual(res.statusCode, 500);
 });
+
+test('parseBody should return 400 on invalid JSON', async (t) => {
+  const event = adminEvent('POST', '/products', null);
+  event.body = "{ invalid json }"; // override body with invalid JSON string
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(JSON.parse(res.body).error, 'Invalid JSON body');
+});
+
+test('isAdmin should support raw JWT via Authorization header', async (t) => {
+  const tokenPayload = Buffer.from(JSON.stringify({ "cognito:groups": ["admin"] })).toString('base64');
+  const token = `header.${tokenPayload}.signature`;
+  
+  const event = userEvent('POST', '/products', { name: 'P1', price: 10 });
+  event.headers = { authorization: `Bearer ${token}` };
+  
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 201); // Created, meaning auth passed
+});
+
+test('isAdmin should support stringified cognito:groups for REST APIs', async (t) => {
+  const event = adminEvent('POST', '/products', { name: 'P1', price: 10 });
+  event.requestContext.authorizer.jwt = undefined;
+  event.requestContext.authorizer.claims = {
+    'cognito:groups': '[admin]'
+  };
+  
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 201); // Created, meaning auth passed
+});
+
+test('getProductId should fallback to match path', async (t) => {
+  const event = userEvent('GET', '/products/777');
+  event.pathParameters = null; // force regex fallback
+  mock.method(docClient, 'send', async () => ({ Item: { productId: '777' } }));
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 200);
+});

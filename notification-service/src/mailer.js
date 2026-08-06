@@ -29,7 +29,7 @@ export const sendEmail = async (toAddress, subject, bodyHtml, bodyText) => {
     from: process.env.SMTP_USER, // Send from the authenticated user to avoid spam blocks
     to: toAddress,
     subject: subject,
-    text: bodyText || bodyHtml.replace(/<[^>]*>/g, ''), // Fallback text strip
+    text: bodyText || bodyHtml.replace(/<[^>]+>/g, ''), // Fallback text strip
     html: bodyHtml,
   };
 

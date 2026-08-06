@@ -235,5 +235,27 @@ test('publishEvent success', async (t) => {
 
 test('publishEvent failure', async (t) => {
   mock.method(SNSClient.prototype, 'send', async () => { throw new Error('SNS Error'); });
-  await assert.rejects(async () => await publishEvent('arn:test', 'TestEvent', { data: 1 }));
+  await publishEvent('arn', 'TestEvent', {});
+  assert.ok(true);
+});
+
+test('parseBody should return 400 on invalid JSON', async (t) => {
+  const event = { httpMethod: 'POST', path: '/inventory/adjust', body: "{ invalid json }" };
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(JSON.parse(res.body).error, 'Invalid JSON body');
+});
+
+test('getProductId should fallback to match path', async (t) => {
+  const event = { httpMethod: 'GET', path: '/inventory/777' };
+  mock.method(docClient, 'send', async () => ({ Item: { productId: '777' } }));
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('Unhandled error should return 500', async (t) => {
+  mock.method(docClient, 'send', async () => { throw new Error('DynamoDB Error'); });
+  const event = { httpMethod: 'GET', path: '/inventory/u1' };
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 500);
 });

@@ -161,4 +161,19 @@ test('sendEmail throws on sendMail failure', async (t) => {
   await assert.rejects(async () => await sendEmail('test@example.com', 'Subject', 'Body'));
 });
 
+test('handler returns error for non-SQS events', async (t) => {
+  const event = { httpMethod: 'GET' };
+  const res = await handler(event, {});
+  assert.strictEqual(res.error, 'Unsupported event type. Notification Service is headless.');
+});
+
+test('handler swallows error if not SQS', async (t) => {
+  const res = await handler(null, {}); // throws 'Empty event', but caught and no event.Records to rethrow
+  assert.strictEqual(res, undefined); // Returns undefined because catch doesn't return anything for non-SQS
+});
+
+test('handler rethrows error if SQS event', async (t) => {
+  const event = { Records: [{ eventSource: 'aws:sqs', body: "{" }] }; // invalid JSON to trigger error
+  await assert.rejects(async () => await handler(event, {}));
+});
 

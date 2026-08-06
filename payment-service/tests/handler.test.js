@@ -295,3 +295,25 @@ test('publishEvent failure', async (t) => {
   await assert.rejects(async () => await publishEvent('arn:test', 'TestEvent', { data: 1 }));
 });
 
+test('parseBody should return 400 on invalid JSON', async (t) => {
+  const event = userEvent('POST', '/payments');
+  event.body = "{ invalid json }";
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(JSON.parse(res.body).error, 'Invalid JSON body');
+});
+
+test('getPaymentId should fallback to match path', async (t) => {
+  const event = userEvent('GET', '/payments/p777');
+  event.pathParameters = null;
+  mock.method(docClient, 'send', async () => ({ Item: { paymentId: 'p777' } }));
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 200);
+});
+
+test('Unhandled error should return 500', async (t) => {
+  mock.method(docClient, 'send', async () => { throw new Error('DynamoDB Error'); });
+  const event = userEvent('GET', '/payments/p1');
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 500);
+});

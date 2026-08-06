@@ -355,3 +355,21 @@ test('Exception handling fallback for SQS', async (t) => {
   const event = createSqsEvent('ProductUpdated', { productId: 'p1', price: 20 });
   await assert.rejects(async () => await handler(event, {}));
 });
+
+test('parseBody should return 400 on invalid JSON', async (t) => {
+  const event = userEvent('POST', '/cart/u1/items', null, { userId: 'u1' });
+  event.body = "{ invalid json }";
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(JSON.parse(res.body).error, 'Invalid JSON body');
+});
+
+test('getItemId should fallback to match path', async (t) => {
+  const event = userEvent('PUT', '/cart/u1/items/p777', { quantity: 5 }, { userId: 'u1' });
+  event.pathParameters.itemId = null; 
+  process.env.INVENTORY_SERVICE_URL = 'http://mock-inv';
+  global.fetch = mock.fn(async () => ({ ok: true, json: async () => ({ data: { available_quantity: 10 } }) }));
+  mock.method(docClient, 'send', async () => ({ Item: { userId: 'u1', items: [] } }));
+  const res = await handler(event, {});
+  assert.strictEqual(res.statusCode, 200);
+});
